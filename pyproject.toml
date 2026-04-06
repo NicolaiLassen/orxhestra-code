@@ -1,0 +1,55 @@
+[project]
+name = "orxhestra-code"
+version = "0.0.1"
+description = "AI coding agent powered by orxhestra — reads, writes, edits code and runs commands"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+    {name = "Nicolai M. T. Lassen"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "orxhestra[cli]>=0.0.40",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+orx-coder = "orxhestra_code.main:main"
+
+[project.urls]
+Homepage = "https://github.com/NicolaiLassen/orxhestra-code"
+Repository = "https://github.com/NicolaiLassen/orxhestra-code"
+
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["orxhestra_code*"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=9.0",
+    "pytest-asyncio>=0.25",
+    "ruff>=0.11",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
