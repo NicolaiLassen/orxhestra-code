@@ -53,10 +53,10 @@ orx-coder --model ollama/qwen2.5-coder:32b
 orx-coder --model deepseek/deepseek-chat
 orx-coder --model xai/grok-3
 
-# Control effort level
-orx-coder --effort low      # fast, 5 iterations max
-orx-coder --effort medium   # balanced, 15 iterations max
-orx-coder --effort high     # thorough, 30 iterations max (default)
+# Control LLM reasoning effort
+orx-coder --effort low      # fast responses, 5 iterations max
+orx-coder --effort medium   # balanced reasoning, 15 iterations max
+orx-coder --effort high     # deep reasoning, 30 iterations max (default)
 
 # Set max tokens per response
 orx-coder --max-tokens 32768

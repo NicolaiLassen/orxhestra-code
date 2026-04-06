@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from orxhestra_code.claude_md import load_project_instructions
-from orxhestra_code.config import CoderConfig, load_config
+from orxhestra_code.config import CoderConfig, effort_model_kwargs, load_config
 from orxhestra_code.prompt import SYSTEM_PROMPT
 
 
@@ -43,12 +43,36 @@ def _build_orx_yaml(cfg: CoderConfig, workspace: Path) -> Path:
     # Escape for YAML multiline block scalar.
     escaped: str = instructions.replace("\\", "\\\\")
 
+    # Build extra model kwargs for LLM-level reasoning effort.
+    extra_model = effort_model_kwargs(cfg.provider, cfg.effort)
+    extra_yaml = ""
+    if extra_model:
+        import yaml as _yaml
+
+        dumped = _yaml.dump(extra_model, default_flow_style=False).rstrip()
+        extra_yaml = "\n" + "\n".join("    " + line for line in dumped.splitlines())
+
     yaml_content: str = f"""\
-model:
-  provider: {cfg.provider}
-  name: {cfg.model_name}
-  temperature: {cfg.temperature}
-  max_tokens: {cfg.max_tokens}
+defaults:
+  model:
+    provider: {cfg.provider}
+    name: {cfg.model_name}
+    temperature: {cfg.temperature}
+    max_tokens: {cfg.max_tokens}{extra_yaml}
+
+tools:
+  filesystem:
+    builtin: "filesystem"
+  shell:
+    builtin: "shell"
+  artifacts:
+    builtin: "artifacts"
+  todos:
+    builtin: "write_todos"
+  task:
+    builtin: "task"
+  human_input:
+    builtin: "human_input"
 
 agents:
   coder:
@@ -57,12 +81,19 @@ agents:
     instructions: |
 {_indent(escaped, 6)}
     tools:
-      - builtin: filesystem
-      - builtin: shell
-      - builtin: memory
-      - builtin: todo
+      - filesystem
+      - shell
+      - artifacts
+      - todos
+      - task
+      - human_input
 
-root: coder
+main_agent: coder
+
+runner:
+  app_name: orx-coder
+  session_service: memory
+  artifact_service: memory
 """
     tmp = Path(tempfile.mkdtemp()) / "orx-coder.yaml"
     tmp.write_text(yaml_content)

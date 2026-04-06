@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from orxhestra_code.claude_md import load_project_instructions
-from orxhestra_code.config import load_config
+from orxhestra_code.config import effort_model_kwargs, load_config
 from orxhestra_code.prompt import SYSTEM_PROMPT
 
 
@@ -41,6 +41,23 @@ def test_config_effort_presets() -> None:
 
     high = load_config(["--effort", "high"])
     assert high.max_iterations == 30
+
+
+def test_effort_model_kwargs_anthropic() -> None:
+    assert effort_model_kwargs("anthropic", "low") == {}
+    mid = effort_model_kwargs("anthropic", "medium")
+    assert mid == {"thinking": {"type": "enabled", "budget_tokens": 5000}}
+    high = effort_model_kwargs("anthropic", "high")
+    assert high == {"thinking": {"type": "enabled", "budget_tokens": 10000}}
+
+
+def test_effort_model_kwargs_openai() -> None:
+    assert effort_model_kwargs("openai", "low") == {"reasoning_effort": "low"}
+    assert effort_model_kwargs("openai", "high") == {"reasoning_effort": "high"}
+
+
+def test_effort_model_kwargs_unknown_provider() -> None:
+    assert effort_model_kwargs("ollama", "high") == {}
 
 
 def test_load_project_instructions_empty(tmp_path: Path) -> None:

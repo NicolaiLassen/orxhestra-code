@@ -20,6 +20,29 @@ EFFORT_PRESETS: dict[str, dict[str, Any]] = {
     "high": {"max_iterations": 30, "temperature": 0.0},
 }
 
+# Provider-specific model kwargs for LLM-level reasoning effort.
+_ANTHROPIC_THINKING_BUDGET: dict[str, int | None] = {
+    "low": None,
+    "medium": 5000,
+    "high": 10000,
+}
+
+
+def effort_model_kwargs(provider: str, effort: str) -> dict[str, Any]:
+    """Return provider-specific model kwargs for the given effort level.
+
+    Different LLM providers expose reasoning effort in different ways.
+    This maps the unified ``effort`` flag to the right constructor kwargs.
+    """
+    if provider == "anthropic":
+        budget = _ANTHROPIC_THINKING_BUDGET.get(effort)
+        if budget is None:
+            return {}
+        return {"thinking": {"type": "enabled", "budget_tokens": budget}}
+    if provider in ("openai", "xai", "deepseek"):
+        return {"reasoning_effort": effort}
+    return {}
+
 
 @dataclass
 class CoderConfig:
