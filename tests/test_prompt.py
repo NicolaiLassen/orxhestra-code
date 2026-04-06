@@ -59,8 +59,10 @@ def test_effort_model_kwargs_anthropic_aws() -> None:
 
 
 def test_effort_model_kwargs_openai() -> None:
-    assert effort_model_kwargs("openai", "low") == {"reasoning_effort": "low"}
-    assert effort_model_kwargs("openai", "high") == {"reasoning_effort": "high"}
+    assert effort_model_kwargs("openai", "high") == {
+        "reasoning_effort": "high",
+        "use_responses_api": True,
+    }
 
 
 def test_effort_model_kwargs_google() -> None:
@@ -78,7 +80,10 @@ def test_effort_model_kwargs_deepseek() -> None:
 
 
 def test_effort_model_kwargs_azure() -> None:
-    assert effort_model_kwargs("azure-ai", "high") == {"reasoning_effort": "high"}
+    assert effort_model_kwargs("azure-ai", "high") == {
+        "reasoning_effort": "high",
+        "use_responses_api": True,
+    }
 
 
 def test_effort_model_kwargs_mistral() -> None:

@@ -61,9 +61,10 @@ def effort_model_kwargs(provider: str, effort: str) -> dict[str, Any]:
             return {}
         return {"thinking": {"type": "enabled", "budget_tokens": budget}}
 
-    # OpenAI / Azure OpenAI — reasoning_effort string.
+    # OpenAI / Azure OpenAI — reasoning_effort requires the Responses API
+    # when used with function tools (/v1/chat/completions rejects it).
     if provider in ("openai", "azure-ai"):
-        return {"reasoning_effort": effort}
+        return {"reasoning_effort": effort, "use_responses_api": True}
 
     # Google Gemini — thinking_level parameter.
     if provider in ("google", "google-vertexai"):
