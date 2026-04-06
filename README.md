@@ -7,26 +7,24 @@ Works with **any LangChain-supported LLM provider**.
 ## Install
 
 ```bash
-uv pip install orxhestra-code
-```
+# Install with your preferred provider
+uv pip install orxhestra-code[openai]       # GPT-5.4, o3, o4, etc.
+uv pip install orxhestra-code[anthropic]    # Claude
+uv pip install orxhestra-code[google]       # Gemini
+uv pip install orxhestra-code[aws]          # Bedrock
+uv pip install orxhestra-code[azure-ai]     # Azure OpenAI
+uv pip install orxhestra-code[mistral]      # Mistral
+uv pip install orxhestra-code[groq]         # Groq
+uv pip install orxhestra-code[ollama]       # Ollama (local)
+uv pip install orxhestra-code[fireworks]    # Fireworks
+uv pip install orxhestra-code[together]     # Together
+uv pip install orxhestra-code[cohere]       # Cohere
+uv pip install orxhestra-code[deepseek]     # DeepSeek
+uv pip install orxhestra-code[xai]          # xAI / Grok
+uv pip install orxhestra-code[openrouter]   # OpenRouter (multi-provider)
 
-Then install the provider for your model:
-
-```bash
-# Pick one (or more)
-uv pip install langchain-anthropic    # Claude
-uv pip install langchain-openai       # GPT-4o, o1, etc.
-uv pip install langchain-google-genai # Gemini
-uv pip install langchain-aws          # Bedrock
-uv pip install langchain-mistralai    # Mistral
-uv pip install langchain-groq         # Groq
-uv pip install langchain-ollama       # Ollama (local)
-uv pip install langchain-fireworks    # Fireworks
-uv pip install langchain-together     # Together
-uv pip install langchain-cohere       # Cohere
-uv pip install langchain-deepseek     # DeepSeek
-uv pip install langchain-xai          # xAI / Grok
-uv pip install langchain-openrouter   # OpenRouter (multi-provider)
+# Or install all providers at once
+uv pip install orxhestra-code[all]
 ```
 
 Or from source:
