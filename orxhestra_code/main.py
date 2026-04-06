@@ -56,9 +56,7 @@ def _build_orx_yaml(cfg: CoderConfig, workspace: Path) -> Path:
 defaults:
   model:
     provider: {cfg.provider}
-    name: {cfg.model_name}
-    temperature: {cfg.temperature}
-    max_tokens: {cfg.max_tokens}{extra_yaml}
+    name: {cfg.model_name}{extra_yaml}
 
 tools:
   filesystem:
