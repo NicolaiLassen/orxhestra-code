@@ -51,9 +51,15 @@ def test_effort_model_kwargs_anthropic() -> None:
     assert high == {"thinking": {"type": "enabled", "budget_tokens": 10000}}
 
 
-def test_effort_model_kwargs_openai() -> None:
-    assert effort_model_kwargs("openai", "low") == {"reasoning_effort": "low"}
-    assert effort_model_kwargs("openai", "high") == {"reasoning_effort": "high"}
+def test_effort_model_kwargs_openai_reasoning_model() -> None:
+    assert effort_model_kwargs("openai", "low", "o3") == {"reasoning_effort": "low"}
+    assert effort_model_kwargs("openai", "high", "o4-mini") == {"reasoning_effort": "high"}
+
+
+def test_effort_model_kwargs_openai_gpt_model() -> None:
+    # GPT models don't support reasoning_effort.
+    assert effort_model_kwargs("openai", "high", "gpt-5.4") == {}
+    assert effort_model_kwargs("openai", "high", "gpt-4o") == {}
 
 
 def test_effort_model_kwargs_unknown_provider() -> None:

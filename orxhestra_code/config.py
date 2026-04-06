@@ -28,11 +28,20 @@ _ANTHROPIC_THINKING_BUDGET: dict[str, int | None] = {
 }
 
 
-def effort_model_kwargs(provider: str, effort: str) -> dict[str, Any]:
+def effort_model_kwargs(provider: str, effort: str, model_name: str = "") -> dict[str, Any]:
     """Return provider-specific model kwargs for the given effort level.
 
     Different LLM providers expose reasoning effort in different ways.
     This maps the unified ``effort`` flag to the right constructor kwargs.
+
+    Parameters
+    ----------
+    provider : str
+        LLM provider name (e.g. ``"openai"``, ``"anthropic"``).
+    effort : str
+        One of ``"low"``, ``"medium"``, ``"high"``.
+    model_name : str
+        Model identifier, used to detect reasoning-capable models.
     """
     if provider == "anthropic":
         budget = _ANTHROPIC_THINKING_BUDGET.get(effort)
@@ -40,7 +49,10 @@ def effort_model_kwargs(provider: str, effort: str) -> dict[str, Any]:
             return {}
         return {"thinking": {"type": "enabled", "budget_tokens": budget}}
     if provider in ("openai", "xai", "deepseek"):
-        return {"reasoning_effort": effort}
+        # Only reasoning-capable models support reasoning_effort.
+        # GPT-series models reject it.
+        if model_name.startswith(("o1", "o3", "o4")):
+            return {"reasoning_effort": effort}
     return {}
 
 
