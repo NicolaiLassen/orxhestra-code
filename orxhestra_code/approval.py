@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from orxhestra.agents.invocation_context import InvocationContext
-    from orxhestra.models.llm_request import LlmRequest
 
 _READ_ONLY_TOOLS: frozenset[str] = frozenset({
     "read_file",

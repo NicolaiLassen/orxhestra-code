@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from orxhestra_code.claude_md import load_project_instructions
-from orxhestra_code.config import CoderConfig, load_config
+from orxhestra_code.config import load_config
 from orxhestra_code.prompt import SYSTEM_PROMPT
 
 
