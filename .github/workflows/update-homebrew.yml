@@ -1,0 +1,42 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version and SHA
+        id: meta
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          URL="https://files.pythonhosted.org/packages/source/o/orxhestra-code/orxhestra_code-${VERSION}.tar.gz"
+          # Wait for PyPI to propagate
+          sleep 30
+          curl -sL "$URL" -o pkg.tar.gz
+          SHA=$(shasum -a 256 pkg.tar.gz | awk '{print $1}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Update formula in tap repo
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          git clone https://x-access-token:${GH_TOKEN}@github.com/NicolaiLassen/homebrew-orxhestra.git tap
+          cd tap
+
+          VERSION="${{ steps.meta.outputs.version }}"
+          SHA="${{ steps.meta.outputs.sha256 }}"
+
+          sed -i "s|url \".*\"|url \"https://files.pythonhosted.org/packages/source/o/orxhestra-code/orxhestra_code-${VERSION}.tar.gz\"|" Formula/orxhestra-code.rb
+          sed -i "s|sha256 \".*\"|sha256 \"${SHA}\"|" Formula/orxhestra-code.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/orxhestra-code.rb
+          git commit -m "Update orxhestra-code to ${VERSION}" || exit 0
+          git push
