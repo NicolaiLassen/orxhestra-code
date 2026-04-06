@@ -513,15 +513,15 @@ wheels = [
 
 [[package]]
 name = "orxhestra"
-version = "0.0.40"
+version = "0.0.41"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/94/c0/327fc9abd9c8fb7246c5b424a467cc4613e6a7dabab7c669771799f3b5ee/orxhestra-0.0.40.tar.gz", hash = "sha256:6d85b975e0c8f97579e224331e808b3dd9b1d484e18ebf3149fb9657f65a5b38", size = 189974 }
+sdist = { url = "https://files.pythonhosted.org/packages/2d/00/77b77e8d4502e4b2c93bf1e39bd0f3b345a08fc59f93a11036e2f2c7059b/orxhestra-0.0.41.tar.gz", hash = "sha256:74b2c58da61bcdfec1984f2d2df307516af17e0575b7272bec424844abfb3490", size = 190225 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/28/31/facfff44bfb5a7b465a4dc6bfa531466960dcbeed13adb93d5c083a264e0/orxhestra-0.0.40-py3-none-any.whl", hash = "sha256:a2240b8190997dc48d8abe710f80547985101cc25dcf1e575f092f2ecbaa6888", size = 204610 },
+    { url = "https://files.pythonhosted.org/packages/e6/91/d3e7947e6d3c32a1f561155fe1bcd6ada161a21b3741aceb7934883dad52/orxhestra-0.0.41-py3-none-any.whl", hash = "sha256:ace5a82395dc1b2a47857d036fddcad753bb656aba838d3259156e634ae78acc", size = 204933 },
 ]
 
 [package.optional-dependencies]
@@ -533,7 +533,7 @@ cli = [
 
 [[package]]
 name = "orxhestra-code"
-version = "0.0.2"
+version = "0.0.4"
 source = { editable = "." }
 dependencies = [
     { name = "orxhestra", extra = ["cli"] },
@@ -549,7 +549,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "orxhestra", extras = ["cli"], specifier = ">=0.0.40" },
+    { name = "orxhestra", extras = ["cli"], specifier = ">=0.0.41" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 
