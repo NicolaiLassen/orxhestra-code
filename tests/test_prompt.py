@@ -51,15 +51,49 @@ def test_effort_model_kwargs_anthropic() -> None:
     assert high == {"thinking": {"type": "enabled", "budget_tokens": 10000}}
 
 
-def test_effort_model_kwargs_openai_reasoning_model() -> None:
-    assert effort_model_kwargs("openai", "low", "o3") == {"reasoning_effort": "low"}
-    assert effort_model_kwargs("openai", "high", "o4-mini") == {"reasoning_effort": "high"}
+def test_effort_model_kwargs_anthropic_aws() -> None:
+    # Bedrock Claude uses same thinking format.
+    assert effort_model_kwargs("aws", "high") == {
+        "thinking": {"type": "enabled", "budget_tokens": 10000},
+    }
 
 
-def test_effort_model_kwargs_openai_gpt_model() -> None:
-    # GPT models don't support reasoning_effort.
-    assert effort_model_kwargs("openai", "high", "gpt-5.4") == {}
-    assert effort_model_kwargs("openai", "high", "gpt-4o") == {}
+def test_effort_model_kwargs_openai() -> None:
+    assert effort_model_kwargs("openai", "low") == {"reasoning_effort": "low"}
+    assert effort_model_kwargs("openai", "high") == {"reasoning_effort": "high"}
+
+
+def test_effort_model_kwargs_google() -> None:
+    assert effort_model_kwargs("google", "low") == {"thinking_level": "low"}
+    assert effort_model_kwargs("google", "high") == {"thinking_level": "high"}
+    assert effort_model_kwargs("google-vertexai", "medium") == {"thinking_level": "medium"}
+
+
+def test_effort_model_kwargs_xai() -> None:
+    assert effort_model_kwargs("xai", "high") == {"reasoning_effort": "high"}
+
+
+def test_effort_model_kwargs_deepseek() -> None:
+    assert effort_model_kwargs("deepseek", "high") == {"reasoning_effort": "high"}
+
+
+def test_effort_model_kwargs_azure() -> None:
+    assert effort_model_kwargs("azure-ai", "high") == {"reasoning_effort": "high"}
+
+
+def test_effort_model_kwargs_mistral() -> None:
+    assert effort_model_kwargs("mistralai", "high") == {"reasoning_effort": "high"}
+
+
+def test_effort_model_kwargs_groq() -> None:
+    assert effort_model_kwargs("groq", "medium") == {"reasoning_effort": "medium"}
+
+
+def test_effort_model_kwargs_cohere() -> None:
+    assert effort_model_kwargs("cohere", "low") == {}
+    assert effort_model_kwargs("cohere", "high") == {
+        "thinking": {"type": "enabled", "budget_tokens": 10000},
+    }
 
 
 def test_effort_model_kwargs_unknown_provider() -> None:

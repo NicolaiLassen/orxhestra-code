@@ -14,13 +14,25 @@ from typing import Any
 _CONFIG_DIR = Path.home() / ".orx-coder"
 _CONFIG_FILE = _CONFIG_DIR / "config.yaml"
 
-EFFORT_PRESETS: dict[str, dict[str, Any]] = {
-    "low": {"max_iterations": 5, "temperature": 0.0},
-    "medium": {"max_iterations": 15, "temperature": 0.0},
-    "high": {"max_iterations": 30, "temperature": 0.0},
+EFFORT_PRESETS: dict[str, dict[str, int]] = {
+    "low": {"max_iterations": 5},
+    "medium": {"max_iterations": 15},
+    "high": {"max_iterations": 30},
 }
 
 # Provider-specific model kwargs for LLM-level reasoning effort.
+#
+# Anthropic:       thinking.budget_tokens  (Claude Sonnet 4+, Opus 4+)
+# AWS Bedrock:     thinking.budget_tokens  (Bedrock Claude)
+# OpenAI:          reasoning.effort        (gpt-5+, o-series)
+# Azure OpenAI:    reasoning.effort        (same as OpenAI)
+# Google:          thinking_level           (Gemini 3+, Gemini 2.5)
+# Google Vertex:   thinking_level           (Vertex AI Gemini)
+# xAI:             reasoning_effort         (Grok 3 Mini, Grok 4.20)
+# DeepSeek:        reasoning_effort         (deepseek-reasoner)
+# Mistral:         reasoning_effort         (Magistral, Mistral Small 4+)
+# Groq:            reasoning_effort         (QwQ, GPT-OSS models)
+# Cohere:          thinking.budget_tokens   (Command A Reasoning)
 _ANTHROPIC_THINKING_BUDGET: dict[str, int | None] = {
     "low": None,
     "medium": 5000,
@@ -28,11 +40,12 @@ _ANTHROPIC_THINKING_BUDGET: dict[str, int | None] = {
 }
 
 
-def effort_model_kwargs(provider: str, effort: str, model_name: str = "") -> dict[str, Any]:
+def effort_model_kwargs(provider: str, effort: str) -> dict[str, Any]:
     """Return provider-specific model kwargs for the given effort level.
 
-    Different LLM providers expose reasoning effort in different ways.
-    This maps the unified ``effort`` flag to the right constructor kwargs.
+    Maps the unified ``--effort`` flag to provider-specific LLM constructor
+    kwargs.  These get forwarded to the LangChain model via orxhestra's
+    ``ModelConfig(extra="allow")`` mechanism.
 
     Parameters
     ----------
@@ -40,19 +53,45 @@ def effort_model_kwargs(provider: str, effort: str, model_name: str = "") -> dic
         LLM provider name (e.g. ``"openai"``, ``"anthropic"``).
     effort : str
         One of ``"low"``, ``"medium"``, ``"high"``.
-    model_name : str
-        Model identifier, used to detect reasoning-capable models.
     """
-    if provider == "anthropic":
+    # Anthropic / AWS Bedrock — extended thinking with budget_tokens.
+    if provider in ("anthropic", "aws"):
         budget = _ANTHROPIC_THINKING_BUDGET.get(effort)
         if budget is None:
             return {}
         return {"thinking": {"type": "enabled", "budget_tokens": budget}}
-    if provider in ("openai", "xai", "deepseek"):
-        # Only reasoning-capable models support reasoning_effort.
-        # GPT-series models reject it.
-        if model_name.startswith(("o1", "o3", "o4")):
-            return {"reasoning_effort": effort}
+
+    # OpenAI / Azure OpenAI — reasoning_effort string.
+    if provider in ("openai", "azure-ai"):
+        return {"reasoning_effort": effort}
+
+    # Google Gemini — thinking_level parameter.
+    if provider in ("google", "google-vertexai"):
+        return {"thinking_level": effort}
+
+    # xAI Grok — reasoning_effort string.
+    if provider == "xai":
+        return {"reasoning_effort": effort}
+
+    # DeepSeek — reasoning_effort string.
+    if provider == "deepseek":
+        return {"reasoning_effort": effort}
+
+    # Mistral — reasoning_effort string (Magistral, Mistral Small 4+).
+    if provider == "mistralai":
+        return {"reasoning_effort": effort}
+
+    # Groq — reasoning_effort string (QwQ, GPT-OSS models).
+    if provider == "groq":
+        return {"reasoning_effort": effort}
+
+    # Cohere — thinking with token budget.
+    if provider == "cohere":
+        budget = _ANTHROPIC_THINKING_BUDGET.get(effort)
+        if budget is None:
+            return {}
+        return {"thinking": {"type": "enabled", "budget_tokens": budget}}
+
     return {}
 
 
@@ -70,8 +109,6 @@ class CoderConfig:
         Maximum tokens per LLM response.
     max_iterations : int
         Maximum tool-call loop iterations (derived from effort).
-    temperature : float
-        LLM temperature (derived from effort).
     workspace : Path
         Project root directory.
     auto_approve_reads : bool
@@ -82,7 +119,6 @@ class CoderConfig:
     effort: str = "high"
     max_tokens: int = 16384
     max_iterations: int = 30
-    temperature: float = 0.0
     workspace: Path = field(default_factory=Path.cwd)
     auto_approve_reads: bool = True
 
@@ -185,6 +221,5 @@ def load_config(argv: list[str] | None = None) -> CoderConfig:
     # Apply effort presets
     preset = EFFORT_PRESETS.get(cfg.effort, EFFORT_PRESETS["high"])
     cfg.max_iterations = preset["max_iterations"]
-    cfg.temperature = preset["temperature"]
 
     return cfg

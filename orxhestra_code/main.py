@@ -44,7 +44,7 @@ def _build_orx_yaml(cfg: CoderConfig, workspace: Path) -> Path:
     escaped: str = instructions.replace("\\", "\\\\")
 
     # Build extra model kwargs for LLM-level reasoning effort.
-    extra_model = effort_model_kwargs(cfg.provider, cfg.effort, cfg.model_name)
+    extra_model = effort_model_kwargs(cfg.provider, cfg.effort)
     extra_yaml = ""
     if extra_model:
         import yaml as _yaml

@@ -53,10 +53,17 @@ orx-coder --model ollama/qwen2.5-coder:32b
 orx-coder --model deepseek/deepseek-chat
 orx-coder --model xai/grok-3
 
-# Control LLM reasoning effort
+# Control LLM reasoning effort (maps to provider-native params)
 orx-coder --effort low      # fast responses, 5 iterations max
 orx-coder --effort medium   # balanced reasoning, 15 iterations max
 orx-coder --effort high     # deep reasoning, 30 iterations max (default)
+
+# Effort maps to each provider's native reasoning API:
+#   Anthropic  → thinking.budget_tokens
+#   OpenAI     → reasoning.effort
+#   Google     → thinking_level
+#   xAI        → reasoning_effort
+#   DeepSeek   → reasoning_effort
 
 # Set max tokens per response
 orx-coder --max-tokens 32768
