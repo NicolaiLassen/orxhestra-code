@@ -66,7 +66,11 @@ def make_plan_mode_tools(
             - Testing approach
             - Any risks or concerns
         """
-        # Show plan and prompt user.
+        import sys
+
+        # Clear spinner line and show plan.
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
         print(f"\n{'=' * 60}")
         print("IMPLEMENTATION PLAN")
         print(f"{'=' * 60}")
@@ -125,4 +129,6 @@ def make_plan_mode_tools(
             "a clear implementation plan."
         ),
     )
+    # Mark exit_plan_mode as interactive so the spinner doesn't block input().
+    object.__setattr__(exit_tool, "interactive", True)
     return [enter_tool, exit_tool]
