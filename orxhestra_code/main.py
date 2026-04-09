@@ -16,6 +16,7 @@ from typing import Any
 
 from orxhestra_code.claude_md import load_project_instructions
 from orxhestra_code.config import CoderConfig, effort_model_kwargs, load_config
+from orxhestra_code.permissions import make_before_tool_callback
 from orxhestra_code.prompt import SYSTEM_PROMPT
 
 
@@ -142,6 +143,15 @@ runner:
     return tmp
 
 
+def _inject_permission_mode(agent: Any, mode: str) -> None:
+    """Walk the agent tree and inject a before_tool callback for the permission mode."""
+    callback = make_before_tool_callback(mode)
+    if hasattr(agent, "_callbacks"):
+        agent._callbacks.before_tool = callback
+    for child in getattr(agent, "sub_agents", []):
+        _inject_permission_mode(child, mode)
+
+
 def _indent(text: str, spaces: int) -> str:
     """Indent every line of *text* by *spaces* spaces."""
     prefix: str = " " * spaces
@@ -170,17 +180,25 @@ async def _async_main() -> None:
         orx_path, cfg.model_name, str(workspace),
     )
 
+    # Inject permission mode callback into the root agent.
+    _inject_permission_mode(state.runner.agent, cfg.permission_mode)
+
+    # Map permission mode to auto_approve for the CLI approval layer.
+    auto_approve: bool = cfg.permission_mode in ("auto-approve", "trust")
+
     # Check for single-shot command via pipe or -c flag.
     if not sys.stdin.isatty():
         command: str = sys.stdin.read().strip()
         if command:
-            await _run_single(state, command, workspace)
+            await _run_single(state, command, workspace, auto_approve)
             return
 
-    await _repl(orx_path, state, workspace)
+    await _repl(orx_path, state, workspace, auto_approve)
 
 
-async def _run_single(state: Any, command: str, workspace: Path) -> None:
+async def _run_single(
+    state: Any, command: str, workspace: Path, auto_approve: bool = False,
+) -> None:
     """Run a single command and exit."""
     try:
         from rich.markdown import Markdown
@@ -199,11 +217,16 @@ async def _run_single(state: Any, command: str, workspace: Path) -> None:
         console,
         Markdown,
         todo_list=state.todo_list,
-        auto_approve=False,
+        auto_approve=auto_approve,
     )
 
 
-async def _repl(orx_path: Path, state: Any, workspace: Path) -> None:
+async def _repl(
+    orx_path: Path,
+    state: Any,
+    workspace: Path,
+    auto_approve: bool = False,
+) -> None:
     """Run the interactive REPL."""
     try:
         from rich.markdown import Markdown
@@ -238,8 +261,6 @@ async def _repl(orx_path: Path, state: Any, workspace: Path) -> None:
         prompt_style = ANSI("\033[38;5;208morx-coder\033[0m\033[90m>\033[0m ")
     except ImportError:
         pass
-
-    auto_approve: bool = False
 
     while True:
         try:

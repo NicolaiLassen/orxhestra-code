@@ -6,6 +6,7 @@ from pathlib import Path
 
 from orxhestra_code.claude_md import load_project_instructions
 from orxhestra_code.config import effort_model_kwargs, load_config
+from orxhestra_code.permissions import check_permission
 from orxhestra_code.prompt import SYSTEM_PROMPT
 
 
@@ -174,3 +175,54 @@ def test_load_project_instructions_truncation(tmp_path: Path) -> None:
     (tmp_path / "CLAUDE.md").write_text(huge)
     result = load_project_instructions(tmp_path)
     assert "TRUNCATED" in result
+
+
+# ── Permission mode tests ────────────────────────────────────────────
+
+
+def test_permission_default_mode() -> None:
+    assert check_permission("default", "read_file", {}) == "allow"
+    assert check_permission("default", "ls", {}) == "allow"
+    assert check_permission("default", "glob", {}) == "allow"
+    assert check_permission("default", "write_file", {}) == "ask"
+    assert check_permission("default", "edit_file", {}) == "ask"
+    assert check_permission("default", "shell_exec", {}) == "ask"
+
+
+def test_permission_plan_mode() -> None:
+    assert check_permission("plan", "read_file", {}) == "allow"
+    assert check_permission("plan", "glob", {}) == "allow"
+    assert check_permission("plan", "grep", {}) == "allow"
+    assert check_permission("plan", "write_file", {}) == "deny"
+    assert check_permission("plan", "edit_file", {}) == "deny"
+    assert check_permission("plan", "shell_exec", {}) == "deny"
+    assert check_permission("plan", "mkdir", {}) == "deny"
+
+
+def test_permission_accept_edits_mode() -> None:
+    assert check_permission("accept-edits", "write_file", {}) == "allow"
+    assert check_permission("accept-edits", "edit_file", {}) == "allow"
+    assert check_permission("accept-edits", "mkdir", {}) == "allow"
+    assert check_permission("accept-edits", "shell_exec", {}) == "ask"
+    assert check_permission("accept-edits", "read_file", {}) == "allow"
+
+
+def test_permission_auto_approve_mode() -> None:
+    assert check_permission("auto-approve", "shell_exec", {}) == "allow"
+    assert check_permission("auto-approve", "write_file", {}) == "allow"
+    assert check_permission("auto-approve", "read_file", {}) == "allow"
+
+
+def test_permission_trust_mode() -> None:
+    assert check_permission("trust", "shell_exec", {}) == "allow"
+    assert check_permission("trust", "write_file", {}) == "allow"
+
+
+def test_config_permission_mode_flag() -> None:
+    cfg = load_config(["--permission-mode", "plan"])
+    assert cfg.permission_mode == "plan"
+
+
+def test_config_auto_approve_shortcut() -> None:
+    cfg = load_config(["--auto-approve"])
+    assert cfg.permission_mode == "auto-approve"

@@ -110,6 +110,9 @@ class CoderConfig:
         Maximum tokens per LLM response.
     max_iterations : int
         Maximum tool-call loop iterations (derived from effort).
+    permission_mode : str
+        One of ``"default"``, ``"plan"``, ``"accept-edits"``,
+        ``"auto-approve"``, ``"trust"``.
     workspace : Path
         Project root directory.
     auto_approve_reads : bool
@@ -120,6 +123,7 @@ class CoderConfig:
     effort: str = "high"
     max_tokens: int = 16384
     max_iterations: int = 30
+    permission_mode: str = "default"
     workspace: Path = field(default_factory=Path.cwd)
     auto_approve_reads: bool = True
 
@@ -171,6 +175,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         help="Project root directory (default: cwd)",
     )
+    parser.add_argument(
+        "--permission-mode",
+        choices=["default", "plan", "accept-edits", "auto-approve", "trust"],
+        help="Permission mode: default (prompt), plan (read-only), "
+        "accept-edits (auto-approve edits), auto-approve (all), trust (all+quiet)",
+    )
+    parser.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="Shortcut for --permission-mode auto-approve",
+    )
     return parser.parse_args(argv)
 
 
@@ -202,6 +217,8 @@ def load_config(argv: list[str] | None = None) -> CoderConfig:
         cfg.workspace = Path(yaml_cfg["workspace"])
     if "auto_approve_reads" in yaml_cfg:
         cfg.auto_approve_reads = yaml_cfg["auto_approve_reads"]
+    if "permission_mode" in yaml_cfg:
+        cfg.permission_mode = yaml_cfg["permission_mode"]
 
     # Layer 2: environment variables
     if env_model := os.environ.get("ORX_MODEL"):
@@ -218,6 +235,12 @@ def load_config(argv: list[str] | None = None) -> CoderConfig:
         cfg.max_tokens = args.max_tokens
     if args.workspace:
         cfg.workspace = args.workspace
+    if getattr(args, "permission_mode", None):
+        cfg.permission_mode = args.permission_mode
+    if getattr(args, "auto_approve", False):
+        cfg.permission_mode = "auto-approve"
+    if env_perm := os.environ.get("ORX_PERMISSION_MODE"):
+        cfg.permission_mode = env_perm
 
     # Apply effort presets
     preset = EFFORT_PRESETS.get(cfg.effort, EFFORT_PRESETS["high"])
