@@ -170,13 +170,17 @@ def make_before_tool_callback(perm_state: PermissionState):
 
         if decision == "ask":
             import sys
+            import time
 
             summary = _format_tool_summary(tool_name, tool_args)
-            # Clear spinner line and prompt user.
-            sys.stdout.write("\r\033[K")
+            # Wait a beat for the spinner to render, then overwrite it.
+            time.sleep(0.05)
+            sys.stdout.write("\r\033[K\033[A\033[K")  # Clear current + previous line.
             sys.stdout.flush()
             try:
-                answer = input(f"  ? Allow: {summary}\n  [y/n/a(ll)] > ").strip().lower()
+                answer = input(
+                    f"\n  ? Allow: {summary}\n  [y/n/a(ll)] > "
+                ).strip().lower()
             except (EOFError, KeyboardInterrupt):
                 answer = "n"
 
