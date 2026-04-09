@@ -333,8 +333,9 @@ async def _async_main() -> None:
     _inject_plan_tools(state.runner.agent, perm_state)
     _register_permission_commands(perm_state)
 
-    # Map permission mode to auto_approve for the CLI approval layer.
-    auto_approve: bool = perm_state.mode in ("auto-approve", "trust")
+    # Always tell orxhestra's CLI to auto_approve — our before_tool callback
+    # handles all approval logic. This prevents two competing prompts.
+    auto_approve: bool = True
 
     # Check for single-shot command via pipe or -c flag.
     if not sys.stdin.isatty():
@@ -343,7 +344,7 @@ async def _async_main() -> None:
             await _run_single(state, command, workspace, auto_approve)
             return
 
-    await _repl(orx_path, state, workspace, auto_approve, perm_state)
+    await _repl(orx_path, state, workspace, auto_approve)
 
 
 async def _run_single(
@@ -375,8 +376,7 @@ async def _repl(
     orx_path: Path,
     state: Any,
     workspace: Path,
-    auto_approve: bool = False,
-    perm_state: PermissionState | None = None,
+    auto_approve: bool = True,
 ) -> None:
     """Run the interactive REPL."""
     try:
@@ -448,9 +448,7 @@ async def _repl(
                 orx_path=orx_path,
                 workspace=str(workspace),
             )
-            # Update auto_approve if permission mode changed via command.
-            if perm_state:
-                auto_approve = perm_state.mode in ("auto-approve", "trust")
+            # auto_approve stays True — our before_tool callback handles it.
             if not state.should_continue:
                 break
             if state.retry_message:
