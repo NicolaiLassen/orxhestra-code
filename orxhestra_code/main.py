@@ -19,6 +19,46 @@ from orxhestra_code.config import CoderConfig, effort_model_kwargs, load_config
 from orxhestra_code.prompt import SYSTEM_PROMPT
 
 
+def _build_env_section(cfg: CoderConfig, workspace: Path) -> str:
+    """Build a dynamic environment info section (mirrors Claude Code's computeSimpleEnvInfo)."""
+    import platform
+    import shutil
+    import subprocess
+
+    is_git = (workspace / ".git").exists()
+    shell = os.environ.get("SHELL", "bash").rsplit("/", 1)[-1]
+    os_version = platform.platform()
+
+    git_info = ""
+    if is_git:
+        try:
+            branch = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True, cwd=str(workspace), timeout=5,
+            ).stdout.strip()
+            git_info = f"\n  Git branch: {branch}" if branch else ""
+        except Exception:
+            pass
+
+    # Detect common tools
+    tools_available: list[str] = []
+    for tool_name in ("git", "gh", "node", "npm", "python", "uv", "pip", "docker"):
+        if shutil.which(tool_name):
+            tools_available.append(tool_name)
+
+    return f"""\
+# Environment
+
+- Working directory: {workspace}
+- Is a git repository: {"yes" if is_git else "no"}{git_info}
+- Platform: {platform.system().lower()}
+- Shell: {shell}
+- OS: {os_version}
+- Model: {cfg.model}
+- Effort: {cfg.effort}
+- Available tools: {', '.join(tools_available) if tools_available else 'unknown'}"""
+
+
 def _build_orx_yaml(cfg: CoderConfig, workspace: Path) -> Path:
     """Generate a temporary orx.yaml for the coding agent.
 
@@ -36,9 +76,13 @@ def _build_orx_yaml(cfg: CoderConfig, workspace: Path) -> Path:
     """
     project_instructions: str = load_project_instructions(workspace)
 
+    # Build dynamic environment section (like Claude Code's computeSimpleEnvInfo).
+    env_section = _build_env_section(cfg, workspace)
+
     instructions: str = SYSTEM_PROMPT
     if project_instructions:
-        instructions = f"{SYSTEM_PROMPT}\n\n{project_instructions}"
+        instructions = f"{instructions}\n\n{project_instructions}"
+    instructions = f"{instructions}\n\n{env_section}"
 
     # Escape for YAML multiline block scalar.
     escaped: str = instructions.replace("\\", "\\\\")
