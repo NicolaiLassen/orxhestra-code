@@ -43,7 +43,7 @@ orx-coder
 
 # Use any LangChain provider
 orx-coder --model anthropic/claude-sonnet-4-6
-orx-coder --model openai/gpt-4o
+orx-coder --model openai/gpt-5.4
 orx-coder --model google/gemini-2.5-pro
 orx-coder --model mistral/mistral-large-latest
 orx-coder --model groq/llama-3.3-70b-versatile
@@ -97,7 +97,7 @@ auto_approve_reads: true
 
 | Variable | Description |
 |---|---|
-| `ORX_MODEL` | Override model (e.g. `openai/gpt-4o`) |
+| `ORX_MODEL` | Override model (e.g. `openai/gpt-5.4`) |
 | `ORX_EFFORT` | Override effort (`low`, `medium`, `high`) |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `OPENAI_API_KEY` | OpenAI API key |
