@@ -18,6 +18,12 @@ def test_system_prompt_has_key_sections() -> None:
     assert "# Using your tools" in SYSTEM_PROMPT
     assert "# Git workflow" in SYSTEM_PROMPT
     assert "# Executing actions with care" in SYSTEM_PROMPT
+    assert "# Committing changes" in SYSTEM_PROMPT
+    assert "# Creating pull requests" in SYSTEM_PROMPT
+    assert "# Shell tool guidance" in SYSTEM_PROMPT
+    assert "# Output efficiency" in SYSTEM_PROMPT
+    assert "NEVER skip hooks" in SYSTEM_PROMPT
+    assert "HEREDOC" in SYSTEM_PROMPT
 
 
 def test_default_config() -> None:
@@ -122,3 +128,49 @@ def test_load_project_instructions_orx_dir(tmp_path: Path) -> None:
     (orx_dir / "instructions.md").write_text("Follow PEP 8.")
     result = load_project_instructions(tmp_path)
     assert "Follow PEP 8." in result
+
+
+def test_load_project_instructions_local_md(tmp_path: Path) -> None:
+    (tmp_path / "CLAUDE.local.md").write_text("Local only rule.")
+    result = load_project_instructions(tmp_path)
+    assert "Local only rule." in result
+
+
+def test_load_project_instructions_claude_dir(tmp_path: Path) -> None:
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    (claude_dir / "CLAUDE.md").write_text("Claude dir rule.")
+    result = load_project_instructions(tmp_path)
+    assert "Claude dir rule." in result
+
+
+def test_load_project_instructions_import(tmp_path: Path) -> None:
+    (tmp_path / "rules.md").write_text("Imported rule content.")
+    (tmp_path / "CLAUDE.md").write_text("Main rule.\n@rules.md")
+    result = load_project_instructions(tmp_path)
+    assert "Main rule." in result
+    assert "Imported rule content." in result
+
+
+def test_load_project_instructions_circular_import(tmp_path: Path) -> None:
+    (tmp_path / "a.md").write_text("A content.\n@b.md")
+    (tmp_path / "b.md").write_text("B content.\n@a.md")
+    (tmp_path / "CLAUDE.md").write_text("@a.md")
+    result = load_project_instructions(tmp_path)
+    assert "A content." in result
+    assert "B content." in result
+
+
+def test_load_project_instructions_html_comments_stripped(tmp_path: Path) -> None:
+    (tmp_path / "CLAUDE.md").write_text("Visible.\n<!-- hidden comment -->\nAlso visible.")
+    result = load_project_instructions(tmp_path)
+    assert "Visible." in result
+    assert "Also visible." in result
+    assert "hidden comment" not in result
+
+
+def test_load_project_instructions_truncation(tmp_path: Path) -> None:
+    huge = "x" * 60_000
+    (tmp_path / "CLAUDE.md").write_text(huge)
+    result = load_project_instructions(tmp_path)
+    assert "TRUNCATED" in result

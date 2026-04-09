@@ -3105,15 +3105,15 @@ wheels = [
 
 [[package]]
 name = "orxhestra"
-version = "0.0.43"
+version = "0.0.45"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/09/7e/4920e7c9f11f9b26cf2f63e6106303b2fa50a2293e2e49e10f24c81432db/orxhestra-0.0.43.tar.gz", hash = "sha256:3ee50852128081ab6e0f861026ef3e0c19f0f9bcd214531d4f3da52d0847840d", size = 190212 }
+sdist = { url = "https://files.pythonhosted.org/packages/69/33/311f42d46c11e948ff0511bc2816b2a479e1843313084bfd5ba0b0f13ad2/orxhestra-0.0.45.tar.gz", hash = "sha256:85d66316d3f07727773e639d71fe95c4808c904c1b007dadb26b67391d312b7c", size = 190725 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/77/6df045d4ca07f63c8e5e8f33388a695c9549169d11954500c6f26da6d62e/orxhestra-0.0.43-py3-none-any.whl", hash = "sha256:fa39e1eddd0b621dc8f8913802500b2c209c0b3914a28b2413c17909b7b17ec3", size = 204962 },
+    { url = "https://files.pythonhosted.org/packages/79/8c/25e20b451cef0d1439755f756b85c5cb298303454dfe4d264685d537d8df/orxhestra-0.0.45-py3-none-any.whl", hash = "sha256:9f4a657a7b2b669b565cb621714654337e52bb12d55a182522dd16ebe6d175df", size = 205410 },
 ]
 
 [package.optional-dependencies]
@@ -3200,7 +3200,7 @@ xai = [
 
 [[package]]
 name = "orxhestra-code"
-version = "0.0.8"
+version = "0.0.9"
 source = { editable = "." }
 dependencies = [
     { name = "orxhestra", extra = ["cli"] },
@@ -3285,7 +3285,7 @@ requires-dist = [
     { name = "orxhestra", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=0.0.43" },
     { name = "orxhestra", extras = ["aws"], marker = "extra == 'aws'", specifier = ">=0.0.43" },
     { name = "orxhestra", extras = ["azure-ai"], marker = "extra == 'azure-ai'", specifier = ">=0.0.43" },
-    { name = "orxhestra", extras = ["cli"], specifier = ">=0.0.43" },
+    { name = "orxhestra", extras = ["cli"], specifier = ">=0.0.45" },
     { name = "orxhestra", extras = ["cohere"], marker = "extra == 'cohere'", specifier = ">=0.0.43" },
     { name = "orxhestra", extras = ["deepseek"], marker = "extra == 'deepseek'", specifier = ">=0.0.43" },
     { name = "orxhestra", extras = ["fireworks"], marker = "extra == 'fireworks'", specifier = ">=0.0.43" },
