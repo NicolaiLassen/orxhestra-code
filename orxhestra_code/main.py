@@ -20,6 +20,67 @@ from orxhestra_code.permissions import make_before_tool_callback
 from orxhestra_code.prompt import SYSTEM_PROMPT
 
 
+def _build_permission_section(mode: str) -> str:
+    """Build the permission mode section for the system prompt.
+
+    This tells the LLM what it can and cannot do under the current
+    permission mode, so it doesn't attempt denied operations.
+    """
+    sections: dict[str, str] = {
+        "default": """\
+# Permission mode: default
+
+Tools are executed in the **default** permission mode. Destructive tools \
+(file writes, edits, shell commands, directory creation) require user \
+approval before execution. Read-only tools (file reads, search, glob) are \
+auto-approved. If the user denies a tool call, do not re-attempt the exact \
+same call. Instead, think about why it was denied and adjust your approach.""",
+
+        "plan": """\
+# Permission mode: plan (read-only)
+
+You are in **plan mode** — a read-only analysis mode. You can ONLY:
+- Read files, search with glob/grep, list directories
+- Think, analyze, and explain code
+- Create task lists and plans
+
+You CANNOT and MUST NOT attempt to:
+- Write or edit any files
+- Run shell commands
+- Create directories
+- Make any changes to the codebase
+
+If the user asks you to make changes, explain what you WOULD do and \
+present a plan, but do not execute it. Suggest the user switch to a \
+different permission mode when ready to implement.""",
+
+        "accept-edits": """\
+# Permission mode: accept-edits
+
+File operations (write, edit, mkdir) are **auto-approved** — you can \
+freely create and modify files without prompting. Shell commands still \
+require user approval. Read-only tools are auto-approved. Use this mode \
+for focused coding tasks where file changes are expected.""",
+
+        "auto-approve": """\
+# Permission mode: auto-approve
+
+All tool calls are **auto-approved** — no prompts will be shown. You can \
+freely read, write, edit files and run shell commands. Exercise extra \
+caution with destructive operations since the user will not be prompted \
+to confirm. Prefer safe, reversible actions.""",
+
+        "trust": """\
+# Permission mode: trust
+
+All tool calls are **auto-approved** with no warnings. Full autonomous \
+operation. Exercise maximum caution with destructive operations — there \
+is no safety net. Only use destructive git operations or file deletions \
+when you are absolutely certain they are correct.""",
+    }
+    return sections.get(mode, sections["default"])
+
+
 def _build_env_section(cfg: CoderConfig, workspace: Path) -> str:
     """Build a dynamic environment info section (mirrors Claude Code's computeSimpleEnvInfo)."""
     import platform
@@ -77,13 +138,14 @@ def _build_orx_yaml(cfg: CoderConfig, workspace: Path) -> Path:
     """
     project_instructions: str = load_project_instructions(workspace)
 
-    # Build dynamic environment section (like Claude Code's computeSimpleEnvInfo).
+    # Build dynamic sections (like Claude Code's per-turn assembly).
     env_section = _build_env_section(cfg, workspace)
+    permission_section = _build_permission_section(cfg.permission_mode)
 
     instructions: str = SYSTEM_PROMPT
     if project_instructions:
         instructions = f"{instructions}\n\n{project_instructions}"
-    instructions = f"{instructions}\n\n{env_section}"
+    instructions = f"{instructions}\n\n{permission_section}\n\n{env_section}"
 
     # Escape for YAML multiline block scalar.
     escaped: str = instructions.replace("\\", "\\\\")
