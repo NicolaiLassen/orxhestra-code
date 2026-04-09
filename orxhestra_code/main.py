@@ -16,7 +16,12 @@ from typing import Any
 
 from orxhestra_code.claude_md import load_project_instructions
 from orxhestra_code.config import CoderConfig, effort_model_kwargs, load_config
-from orxhestra_code.permissions import make_before_tool_callback
+from orxhestra_code.permissions import (
+    PERMISSION_MODE_LABELS,
+    PERMISSION_MODES,
+    PermissionState,
+    make_before_tool_callback,
+)
 from orxhestra_code.prompt import SYSTEM_PROMPT
 
 
@@ -205,13 +210,13 @@ runner:
     return tmp
 
 
-def _inject_permission_mode(agent: Any, mode: str) -> None:
+def _inject_permission_callback(agent: Any, perm_state: PermissionState) -> None:
     """Walk the agent tree and inject a before_tool callback for the permission mode."""
-    callback = make_before_tool_callback(mode)
+    callback = make_before_tool_callback(perm_state)
     if hasattr(agent, "_callbacks"):
         agent._callbacks.before_tool = callback
     for child in getattr(agent, "sub_agents", []):
-        _inject_permission_mode(child, mode)
+        _inject_permission_callback(child, perm_state)
 
 
 def _indent(text: str, spaces: int) -> str:
@@ -242,11 +247,12 @@ async def _async_main() -> None:
         orx_path, cfg.model_name, str(workspace),
     )
 
-    # Inject permission mode callback into the root agent.
-    _inject_permission_mode(state.runner.agent, cfg.permission_mode)
+    # Create mutable permission state and inject callback into the agent tree.
+    perm_state = PermissionState(cfg.permission_mode)
+    _inject_permission_callback(state.runner.agent, perm_state)
 
     # Map permission mode to auto_approve for the CLI approval layer.
-    auto_approve: bool = cfg.permission_mode in ("auto-approve", "trust")
+    auto_approve: bool = perm_state.mode in ("auto-approve", "trust")
 
     # Check for single-shot command via pipe or -c flag.
     if not sys.stdin.isatty():
@@ -255,7 +261,7 @@ async def _async_main() -> None:
             await _run_single(state, command, workspace, auto_approve)
             return
 
-    await _repl(orx_path, state, workspace, auto_approve)
+    await _repl(orx_path, state, workspace, auto_approve, perm_state)
 
 
 async def _run_single(
@@ -288,6 +294,7 @@ async def _repl(
     state: Any,
     workspace: Path,
     auto_approve: bool = False,
+    perm_state: PermissionState | None = None,
 ) -> None:
     """Run the interactive REPL."""
     try:
@@ -311,14 +318,24 @@ async def _repl(
     prompt_session: Any = None
     prompt_style: Any = None
     try:
+        from orxhestra.cli.commands import get_command_names
         from prompt_toolkit import PromptSession
+        from prompt_toolkit.completion import WordCompleter
         from prompt_toolkit.formatted_text import ANSI
         from prompt_toolkit.history import FileHistory
+
+        # Merge orxhestra commands + our custom commands for autocomplete.
+        all_commands = sorted(
+            set(get_command_names())
+            | {"/permissions", "/perm", "/mode"}
+        )
+        completer = WordCompleter(all_commands, sentence=True)
 
         history_dir: Path = Path.home() / ".orx-coder"
         history_dir.mkdir(parents=True, exist_ok=True)
         prompt_session = PromptSession(
             history=FileHistory(str(history_dir / "history")),
+            completer=completer,
         )
         prompt_style = ANSI("\033[38;5;208morx-coder\033[0m\033[90m>\033[0m ")
     except ImportError:
@@ -342,11 +359,45 @@ async def _repl(
 
         if user_input.startswith("/"):
             cmd_parts: list[str] = user_input.split(maxsplit=1)
+            cmd_name = cmd_parts[0].lower()
             cmd_arg: str | None = (
                 cmd_parts[1].strip() if len(cmd_parts) > 1 else None
             )
+
+            # Handle /permissions locally (not in orxhestra's dispatch).
+            if cmd_name in ("/permissions", "/perm", "/mode") and perm_state:
+                if cmd_arg and cmd_arg in PERMISSION_MODES:
+                    perm_state.mode = cmd_arg
+                    auto_approve = perm_state.mode in ("auto-approve", "trust")
+                    console.print(
+                        f"  [orx.status]Permission mode: "
+                        f"{PERMISSION_MODE_LABELS[perm_state.mode]}[/orx.status]"
+                    )
+                elif cmd_arg == "cycle":
+                    new_mode = perm_state.cycle()
+                    auto_approve = new_mode in ("auto-approve", "trust")
+                    console.print(
+                        f"  [orx.status]Permission mode: "
+                        f"{PERMISSION_MODE_LABELS[new_mode]}[/orx.status]"
+                    )
+                else:
+                    console.print(
+                        f"  [orx.status]Current mode: "
+                        f"{PERMISSION_MODE_LABELS[perm_state.mode]}[/orx.status]"
+                    )
+                    console.print(
+                        "  [orx.status]Available: "
+                        + ", ".join(PERMISSION_MODES)
+                        + "[/orx.status]"
+                    )
+                    console.print(
+                        "  [orx.status]Usage: /permissions <mode> "
+                        "or /permissions cycle[/orx.status]"
+                    )
+                continue
+
             await handle_slash_command(
-                cmd_parts[0].lower(),
+                cmd_name,
                 cmd_arg,
                 state,
                 console=console,

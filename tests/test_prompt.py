@@ -6,7 +6,7 @@ from pathlib import Path
 
 from orxhestra_code.claude_md import load_project_instructions
 from orxhestra_code.config import effort_model_kwargs, load_config
-from orxhestra_code.permissions import check_permission
+from orxhestra_code.permissions import PermissionState, check_permission
 from orxhestra_code.prompt import SYSTEM_PROMPT
 
 
@@ -226,3 +226,12 @@ def test_config_permission_mode_flag() -> None:
 def test_config_auto_approve_shortcut() -> None:
     cfg = load_config(["--auto-approve"])
     assert cfg.permission_mode == "auto-approve"
+
+
+def test_permission_state_cycle() -> None:
+    ps = PermissionState("default")
+    assert ps.cycle() == "plan"
+    assert ps.cycle() == "accept-edits"
+    assert ps.cycle() == "auto-approve"
+    assert ps.cycle() == "trust"
+    assert ps.cycle() == "default"  # wraps around

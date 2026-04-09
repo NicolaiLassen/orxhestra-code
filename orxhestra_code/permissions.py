@@ -58,9 +58,37 @@ PERMISSION_MODES: tuple[str, ...] = (
     "trust",
 )
 
+# Short descriptions for display.
+PERMISSION_MODE_LABELS: dict[str, str] = {
+    "default": "default (prompt for writes/shell)",
+    "plan": "plan (read-only)",
+    "accept-edits": "accept-edits (auto-approve edits, prompt shell)",
+    "auto-approve": "auto-approve (no prompts)",
+    "trust": "trust (no prompts, no warnings)",
+}
+
 
 class PermissionDeniedError(Exception):
     """Raised when a tool call is denied by the permission mode."""
+
+
+class PermissionState:
+    """Mutable permission state that can be changed mid-session.
+
+    The ``before_tool`` callback references this object, so changing
+    ``self.mode`` takes effect on the next tool call without needing
+    to re-inject the callback.
+    """
+
+    def __init__(self, mode: str = "default") -> None:
+        self.mode = mode
+
+    def cycle(self) -> str:
+        """Cycle to the next permission mode and return it."""
+        modes = list(PERMISSION_MODES)
+        idx = modes.index(self.mode) if self.mode in modes else 0
+        self.mode = modes[(idx + 1) % len(modes)]
+        return self.mode
 
 
 def check_permission(
@@ -107,20 +135,19 @@ def check_permission(
     return "allow"
 
 
-def make_before_tool_callback(mode: str):
-    """Create a ``before_tool`` callback that enforces a permission mode.
+def make_before_tool_callback(perm_state: PermissionState):
+    """Create a ``before_tool`` callback that enforces the current permission mode.
 
-    The callback raises ``PermissionDeniedError`` for denied tools,
-    which the orxhestra tool executor catches and converts to an error
-    response visible to the LLM.
+    The callback reads from ``perm_state.mode`` on every call, so
+    changing the mode mid-session takes effect immediately.
     """
 
     async def _before_tool(ctx: Any, tool_name: str, tool_args: dict) -> None:
-        decision = check_permission(mode, tool_name, tool_args)
+        decision = check_permission(perm_state.mode, tool_name, tool_args)
         if decision == "deny":
             raise PermissionDeniedError(
-                f"Tool '{tool_name}' is not allowed in '{mode}' permission mode. "
-                f"Switch to a different mode to use this tool."
+                f"Tool '{tool_name}' is not allowed in '{perm_state.mode}' "
+                f"permission mode. Switch to a different mode to use this tool."
             )
         # "ask" and "allow" both proceed — "ask" is handled by the CLI
         # approval prompt in stream_response.
