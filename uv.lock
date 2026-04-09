@@ -3200,9 +3200,10 @@ xai = [
 
 [[package]]
 name = "orxhestra-code"
-version = "0.0.12"
+version = "0.0.13"
 source = { editable = "." }
 dependencies = [
+    { name = "aiosqlite" },
     { name = "orxhestra", extra = ["cli"] },
     { name = "pyyaml" },
 ]
@@ -3281,6 +3282,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.20" },
     { name = "orxhestra", extras = ["all"], marker = "extra == 'all'", specifier = ">=0.0.48" },
     { name = "orxhestra", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=0.0.48" },
     { name = "orxhestra", extras = ["aws"], marker = "extra == 'aws'", specifier = ">=0.0.48" },

@@ -1,6 +1,6 @@
 [project]
 name = "orxhestra-code"
-version = "0.0.12"
+version = "0.0.13"
 description = "AI coding agent powered by orxhestra — reads, writes, edits code and runs commands"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,6 +19,7 @@ classifiers = [
 dependencies = [
     "orxhestra[cli]>=0.0.48",
     "pyyaml>=6.0",
+    "aiosqlite>=0.20",
 ]
 
 [project.optional-dependencies]

@@ -135,21 +135,54 @@ def check_permission(
     return "allow"
 
 
+def _format_tool_summary(tool_name: str, tool_args: dict[str, Any]) -> str:
+    """Format a one-line summary of a tool call for the approval prompt."""
+    if tool_name == "shell_exec":
+        cmd = tool_args.get("command", "")
+        return f"shell_exec: {cmd[:120]}" + ("..." if len(cmd) > 120 else "")
+    if tool_name in ("write_file", "edit_file"):
+        path = tool_args.get("path", "?")
+        return f"{tool_name}: {path}"
+    if tool_name == "mkdir":
+        return f"mkdir: {tool_args.get('path', '?')}"
+    return f"{tool_name}({', '.join(f'{k}={v!r}' for k, v in list(tool_args.items())[:3])})"
+
+
 def make_before_tool_callback(perm_state: PermissionState):
     """Create a ``before_tool`` callback that enforces the current permission mode.
 
     The callback reads from ``perm_state.mode`` on every call, so
     changing the mode mid-session takes effect immediately.
+
+    For ``"ask"`` decisions, the user is prompted in the terminal.
+    Typing ``n`` denies the call, ``y`` allows it, ``a`` switches
+    to auto-approve for the rest of the session.
     """
 
     async def _before_tool(ctx: Any, tool_name: str, tool_args: dict) -> None:
         decision = check_permission(perm_state.mode, tool_name, tool_args)
+
         if decision == "deny":
             raise PermissionDeniedError(
                 f"Tool '{tool_name}' is not allowed in '{perm_state.mode}' "
                 f"permission mode. Switch to a different mode to use this tool."
             )
-        # "ask" and "allow" both proceed — "ask" is handled by the CLI
-        # approval prompt in stream_response.
+
+        if decision == "ask":
+            summary = _format_tool_summary(tool_name, tool_args)
+            try:
+                answer = input(f"\n  ? Allow: {summary}\n  [y/n/a(ll)] > ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                answer = "n"
+
+            if answer == "a":
+                perm_state.mode = "auto-approve"
+                return
+            if answer not in ("y", "yes"):
+                raise PermissionDeniedError(
+                    f"User denied '{tool_name}'. The user chose not to allow "
+                    f"this operation. Try a different approach or ask the user "
+                    f"what they'd like you to do instead."
+                )
 
     return _before_tool

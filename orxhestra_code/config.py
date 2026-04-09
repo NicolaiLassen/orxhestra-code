@@ -124,6 +124,7 @@ class CoderConfig:
     max_tokens: int = 16384
     max_iterations: int = 30
     permission_mode: str = "default"
+    resume_session: str | None = None
     workspace: Path = field(default_factory=Path.cwd)
     auto_approve_reads: bool = True
 
@@ -174,6 +175,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--workspace", "-w",
         type=Path,
         help="Project root directory (default: cwd)",
+    )
+    parser.add_argument(
+        "-c", "--continue", dest="continue_session",
+        action="store_true",
+        help="Continue the most recent session",
+    )
+    parser.add_argument(
+        "-r", "--resume",
+        type=str,
+        metavar="SESSION_ID",
+        help="Resume a specific session by ID",
     )
     parser.add_argument(
         "--permission-mode",
@@ -235,6 +247,10 @@ def load_config(argv: list[str] | None = None) -> CoderConfig:
         cfg.max_tokens = args.max_tokens
     if args.workspace:
         cfg.workspace = args.workspace
+    if getattr(args, "resume", None):
+        cfg.resume_session = args.resume
+    elif getattr(args, "continue_session", False):
+        cfg.resume_session = "latest"
     if getattr(args, "permission_mode", None):
         cfg.permission_mode = args.permission_mode
     if getattr(args, "auto_approve", False):

@@ -23,6 +23,7 @@ from orxhestra_code.permissions import (
     make_before_tool_callback,
 )
 from orxhestra_code.prompt import SYSTEM_PROMPT
+from orxhestra_code.tools.plan_mode import make_plan_mode_tools
 
 
 def _build_permission_section(mode: str) -> str:
@@ -155,6 +156,11 @@ def _build_orx_yaml(cfg: CoderConfig, workspace: Path) -> Path:
     # Escape for YAML multiline block scalar.
     escaped: str = instructions.replace("\\", "\\\\")
 
+    # Session database path for persistence.
+    session_dir = Path.home() / ".orx-coder"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    session_db = str(session_dir / "sessions.db")
+
     # Build extra model kwargs for LLM-level reasoning effort.
     extra_model = effort_model_kwargs(cfg.provider, cfg.effort)
     extra_yaml = ""
@@ -202,7 +208,7 @@ main_agent: coder
 
 runner:
   app_name: orx-coder
-  session_service: memory
+  session_service: sqlite+aiosqlite:///{session_db}
   artifact_service: memory
 """
     tmp = Path(tempfile.mkdtemp()) / "orx-coder.yaml"
@@ -259,6 +265,33 @@ def _inject_permission_callback(agent: Any, perm_state: PermissionState) -> None
         _inject_permission_callback(child, perm_state)
 
 
+async def _resolve_session_id(state: Any, resume_arg: str) -> str | None:
+    """Resolve a session ID from a resume argument.
+
+    If ``resume_arg`` is ``"latest"``, finds the most recent session
+    from the session service.  Otherwise treats it as a literal session ID.
+    """
+    if resume_arg != "latest":
+        return resume_arg
+
+    # Try to list sessions from the runner's session service.
+    svc = state.runner._session_service
+    if hasattr(svc, "list_sessions"):
+        sessions = await svc.list_sessions(app_name="orx-coder")
+        if sessions:
+            # Sort by most recent event timestamp.
+            sessions.sort(key=lambda s: s.last_update_time or 0, reverse=True)
+            return sessions[0].id
+    return None
+
+
+def _inject_plan_tools(agent: Any, perm_state: PermissionState) -> None:
+    """Add enter/exit plan mode tools to the root agent."""
+    if hasattr(agent, "_tools"):
+        for tool in make_plan_mode_tools(perm_state):
+            agent._tools[tool.name] = tool
+
+
 def _indent(text: str, spaces: int) -> str:
     """Indent every line of *text* by *spaces* spaces."""
     prefix: str = " " * spaces
@@ -287,9 +320,17 @@ async def _async_main() -> None:
         orx_path, cfg.model_name, str(workspace),
     )
 
+    # Handle session resume.
+    if cfg.resume_session:
+        resumed_id = await _resolve_session_id(state, cfg.resume_session)
+        if resumed_id:
+            state.session_id = resumed_id
+            logging.info("Resumed session: %s", resumed_id)
+
     # Create mutable permission state, inject callback, register commands.
     perm_state = PermissionState(cfg.permission_mode)
     _inject_permission_callback(state.runner.agent, perm_state)
+    _inject_plan_tools(state.runner.agent, perm_state)
     _register_permission_commands(perm_state)
 
     # Map permission mode to auto_approve for the CLI approval layer.
