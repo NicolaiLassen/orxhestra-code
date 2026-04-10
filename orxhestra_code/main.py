@@ -210,6 +210,9 @@ runner:
   app_name: orx-coder
   session_service: sqlite+aiosqlite:///{session_db}
   artifact_service: memory
+  compaction:
+    char_threshold: 80000
+    retention_chars: 15000
 """
     tmp = Path(tempfile.mkdtemp()) / "orx-coder.yaml"
     tmp.write_text(yaml_content)
@@ -256,13 +259,100 @@ def _register_permission_commands(perm_state: PermissionState) -> None:
     register_command("/mode", _cmd_permissions)
 
 
-def _inject_permission_callback(agent: Any, perm_state: PermissionState) -> None:
-    """Walk the agent tree and inject a before_tool callback for the permission mode."""
+def _register_extra_commands() -> None:
+    """Register /cost and /diff commands."""
+    from orxhestra.cli.commands import register_command
+
+    # Cumulative session token tracking.
+    _session_usage: dict[str, int] = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "turns": 0,
+    }
+
+    def track_usage(prompt_tokens: int, completion_tokens: int) -> None:
+        """Called after each turn to accumulate usage."""
+        _session_usage["prompt_tokens"] += prompt_tokens
+        _session_usage["completion_tokens"] += completion_tokens
+        _session_usage["turns"] += 1
+
+    # Expose tracker so the REPL can call it.
+    _register_extra_commands.track_usage = track_usage  # type: ignore[attr-defined]
+
+    async def _cmd_cost(state: Any, cmd_arg: str | None, **kw: Any) -> None:
+        console = kw.get("console")
+        if not console:
+            return
+        p = _session_usage["prompt_tokens"]
+        c = _session_usage["completion_tokens"]
+        total = p + c
+        turns = _session_usage["turns"]
+        console.print(f"  [orx.status]Session token usage ({turns} turns):[/orx.status]")
+        console.print(f"  [orx.status]  Input:  {p:,} tokens[/orx.status]")
+        console.print(f"  [orx.status]  Output: {c:,} tokens[/orx.status]")
+        console.print(f"  [orx.status]  Total:  {total:,} tokens[/orx.status]")
+
+    register_command("/cost", _cmd_cost)
+    register_command("/usage", _cmd_cost)
+
+    async def _cmd_diff(state: Any, cmd_arg: str | None, **kw: Any) -> None:
+        console = kw.get("console")
+        if not console:
+            return
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--stat"],
+                capture_output=True, text=True, timeout=10,
+            )
+            stat = result.stdout.strip()
+            if not stat:
+                console.print("  [orx.status]No uncommitted changes.[/orx.status]")
+                return
+            console.print("  [orx.status]Uncommitted changes:[/orx.status]")
+            console.print(f"  {stat}")
+
+            # Show full diff if --full or -f is passed.
+            if cmd_arg in ("--full", "-f", "full"):
+                full = subprocess.run(
+                    ["git", "diff"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if full.stdout.strip():
+                    from rich.syntax import Syntax
+
+                    syntax = Syntax(
+                        full.stdout, "diff", theme="monokai", line_numbers=False,
+                    )
+                    console.print(syntax)
+        except FileNotFoundError:
+            console.print("  [orx.status]git not found.[/orx.status]")
+        except subprocess.TimeoutExpired:
+            console.print("  [orx.status]git diff timed out.[/orx.status]")
+
+    register_command("/diff", _cmd_diff)
+
+
+def _inject_permission_callback(
+    agent: Any, perm_state: PermissionState, usage_tracker: Any = None,
+) -> None:
+    """Walk the agent tree and inject callbacks for permissions and usage tracking."""
     from orxhestra_code.permissions import _DESTRUCTIVE_TOOLS
 
     callback = make_before_tool_callback(perm_state)
     if hasattr(agent, "_callbacks"):
         agent._callbacks.before_tool = callback
+        # Wire up usage tracking via after_model callback.
+        if usage_tracker is not None:
+            async def _after_model(ctx: Any, response: Any) -> None:
+                usage = getattr(response, "usage_metadata", None)
+                if usage:
+                    usage_tracker(
+                        usage.get("input_tokens", 0) or 0,
+                        usage.get("output_tokens", 0) or 0,
+                    )
+            agent._callbacks.after_model = _after_model
     # Mark destructive tools with require_confirmation so the spinner
     # is suppressed while the approval prompt is active.
     if hasattr(agent, "_tools"):
@@ -337,7 +427,9 @@ async def _async_main() -> None:
 
     # Create mutable permission state, inject callback, register commands.
     perm_state = PermissionState(cfg.permission_mode)
-    _inject_permission_callback(state.runner.agent, perm_state)
+    _register_extra_commands()
+    usage_tracker = getattr(_register_extra_commands, "track_usage", None)
+    _inject_permission_callback(state.runner.agent, perm_state, usage_tracker)
     _inject_plan_tools(state.runner.agent, perm_state)
     _register_permission_commands(perm_state)
 
