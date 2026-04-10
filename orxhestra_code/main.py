@@ -349,12 +349,10 @@ def _inject_permission_callback(
         # Wire up usage tracking via after_model callback.
         if usage_tracker is not None:
             async def _after_model(ctx: Any, response: Any) -> None:
-                usage = getattr(response, "usage_metadata", None)
-                if usage:
-                    usage_tracker(
-                        usage.get("input_tokens", 0) or 0,
-                        usage.get("output_tokens", 0) or 0,
-                    )
+                input_t = getattr(response, "input_tokens", 0) or 0
+                output_t = getattr(response, "output_tokens", 0) or 0
+                if input_t or output_t:
+                    usage_tracker(input_t, output_t)
             agent._callbacks.after_model = _after_model
     # Mark destructive tools with require_confirmation so the spinner
     # is suppressed while the approval prompt is active.
