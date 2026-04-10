@@ -17,34 +17,34 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "orxhestra[cli]>=0.0.50",
+    "orxhestra[cli]>=0.0.51",
     "pyyaml>=6.0",
     "aiosqlite>=0.20",
     "sqlalchemy[asyncio]>=2.0",
 ]
 
 [project.optional-dependencies]
-openai = ["orxhestra[openai]>=0.0.50"]
-anthropic = ["orxhestra[anthropic]>=0.0.50"]
-google = ["orxhestra[google]>=0.0.50"]
-google-vertexai = ["orxhestra[google-vertexai]>=0.0.50"]
-aws = ["orxhestra[aws]>=0.0.50"]
-azure-ai = ["orxhestra[azure-ai]>=0.0.50"]
-mistral = ["orxhestra[mistral]>=0.0.50"]
-cohere = ["orxhestra[cohere]>=0.0.50"]
-fireworks = ["orxhestra[fireworks]>=0.0.50"]
-together = ["orxhestra[together]>=0.0.50"]
-groq = ["orxhestra[groq]>=0.0.50"]
-nvidia = ["orxhestra[nvidia]>=0.0.50"]
-huggingface = ["orxhestra[huggingface]>=0.0.50"]
-deepseek = ["orxhestra[deepseek]>=0.0.50"]
-ollama = ["orxhestra[ollama]>=0.0.50"]
-xai = ["orxhestra[xai]>=0.0.50"]
-ibm = ["orxhestra[ibm]>=0.0.50"]
-perplexity = ["orxhestra[perplexity]>=0.0.50"]
-openrouter = ["orxhestra[openrouter]>=0.0.50"]
-upstage = ["orxhestra[upstage]>=0.0.50"]
-all = ["orxhestra[all]>=0.0.50"]
+openai = ["orxhestra[openai]>=0.0.51"]
+anthropic = ["orxhestra[anthropic]>=0.0.51"]
+google = ["orxhestra[google]>=0.0.51"]
+google-vertexai = ["orxhestra[google-vertexai]>=0.0.51"]
+aws = ["orxhestra[aws]>=0.0.51"]
+azure-ai = ["orxhestra[azure-ai]>=0.0.51"]
+mistral = ["orxhestra[mistral]>=0.0.51"]
+cohere = ["orxhestra[cohere]>=0.0.51"]
+fireworks = ["orxhestra[fireworks]>=0.0.51"]
+together = ["orxhestra[together]>=0.0.51"]
+groq = ["orxhestra[groq]>=0.0.51"]
+nvidia = ["orxhestra[nvidia]>=0.0.51"]
+huggingface = ["orxhestra[huggingface]>=0.0.51"]
+deepseek = ["orxhestra[deepseek]>=0.0.51"]
+ollama = ["orxhestra[ollama]>=0.0.51"]
+xai = ["orxhestra[xai]>=0.0.51"]
+ibm = ["orxhestra[ibm]>=0.0.51"]
+perplexity = ["orxhestra[perplexity]>=0.0.51"]
+openrouter = ["orxhestra[openrouter]>=0.0.51"]
+upstage = ["orxhestra[upstage]>=0.0.51"]
+all = ["orxhestra[all]>=0.0.51"]
 
 [project.scripts]
 orx-coder = "orxhestra_code.main:main"
