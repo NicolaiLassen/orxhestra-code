@@ -3200,7 +3200,7 @@ xai = [
 
 [[package]]
 name = "orxhestra-code"
-version = "0.0.15"
+version = "0.0.17"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },

@@ -89,28 +89,53 @@ orx-coder --workspace /path/to/project
 echo "fix the failing tests" | orx-coder
 ```
 
-## What it can do
+## Tools
 
-- **Read** files, search with glob/grep
-- **Write** and **edit** files (sends diffs, not full rewrites)
-- **Run** shell commands (build, test, git, etc.)
-- **Plan** complex tasks before implementing (enter/exit plan mode with user approval)
-- **Track tasks** with a structured todo list
-- **Git** workflow (structured commit protocol, PR creation with `gh`)
-- **Persist sessions** to disk (SQLite) and resume later
-- **Delegate** subtasks to isolated sub-agents
+The agent has access to these built-in tools:
 
-## Permission modes
+### File Operations
+- **ls** — List files and directories
+- **read_file** — Read files with line numbers, offset/limit pagination, image support
+- **write_file** — Create or overwrite files, auto-creates parent directories
+- **edit_file** — Find-and-replace edits with diff output
+- **mkdir** — Create directories
+- **glob** — Fast file pattern matching (`**/*.py`, `src/*.ts`)
+- **grep** — Search file contents with regex, context lines, glob filtering
 
-| Mode | Behavior |
-|---|---|
-| `default` | Prompt for destructive tools (writes, edits, shell) |
-| `plan` | Read-only — explore and analyze, cannot modify anything |
-| `accept-edits` | Auto-approve file operations, prompt for shell |
-| `auto-approve` | Auto-approve everything, no prompts |
-| `trust` | Full autonomous mode, no prompts or warnings |
+### Shell
+- **shell_exec** — Run shell commands (git, npm, pip, make, tests, etc.)
 
-Switch modes mid-session with `/permissions`:
+### Planning
+- **enter_plan_mode** — Switch to read-only mode for codebase exploration. The agent reads files, searches, and analyzes before writing code.
+- **exit_plan_mode** — Present an implementation plan for your approval. You can approve, reject, or request changes before the agent starts coding.
+
+### Task Management
+- **write_todos** — Create and update structured task lists. The agent breaks complex work into steps and tracks progress.
+
+### Delegation
+- **task** — Delegate a complex subtask to a fresh agent with isolated context. Useful for parallel research or exploratory work that would clutter the main conversation.
+
+### Artifacts
+- **save_artifact** — Save files or data to the artifact store
+- **load_artifact** — Load a previously saved artifact
+- **list_artifacts** — List all available artifacts
+
+### User Interaction
+- **human_input** — Ask you a clarifying question when the agent needs more information before proceeding
+
+## Permission Modes
+
+Control what the agent can do without prompting:
+
+| Mode | Reads | Edits | Shell | Use case |
+|---|---|---|---|---|
+| `default` | auto | prompt | prompt | Normal usage — you approve each destructive action |
+| `plan` | auto | **deny** | **deny** | Read-only exploration and analysis |
+| `accept-edits` | auto | auto | prompt | Focused coding — edits are expected, shell needs approval |
+| `auto-approve` | auto | auto | auto | Full speed — trust the agent completely |
+| `trust` | auto | auto | auto | Like auto-approve with no warnings |
+
+Switch mid-session:
 
 ```
 /permissions plan           # switch to read-only
@@ -119,17 +144,42 @@ Switch modes mid-session with `/permissions`:
 /permissions                # show current mode
 ```
 
-## Plan mode
+When a tool needs approval, you'll see:
 
-For non-trivial tasks, the agent can enter plan mode to explore the codebase and design an approach before writing code:
+```
+  ? Allow: shell_exec: npm test
+  [y/n/a(ll)] >
+```
 
-1. Agent calls `enter_plan_mode` (switches to read-only)
-2. Agent reads files, searches, analyzes the codebase
-3. Agent calls `exit_plan_mode` with an implementation plan
-4. **You approve, reject, or request changes** to the plan
-5. On approval, permissions restore and the agent implements
+Type `y` to allow once, `n` to deny, or `a` to auto-approve all for the rest of the session.
 
-## Reasoning effort
+## Plan Mode
+
+For non-trivial tasks, the agent enters plan mode to explore and design before coding:
+
+```
+orx-coder> build a REST API for user management
+
+  ┌ enter_plan_mode
+  └ done
+  ┌ glob(**/*.py), read_file(app/models.py), grep(def.*user, path=app/)
+  └ done
+  ┌ exit_plan_mode
+  │ IMPLEMENTATION PLAN
+  │ ============================================================
+  │ 1. Create app/routers/users.py with CRUD endpoints
+  │ 2. Add UserCreate/UserUpdate schemas to app/schemas.py
+  │ 3. Add pagination to list endpoint
+  │ ============================================================
+  │
+  │ ? Approve this plan? [y/n/e(dit)] >
+```
+
+- **y** — Approve and start implementing
+- **n** — Reject, agent asks what you'd prefer
+- **e** — Request changes, agent revises the plan
+
+## Reasoning Effort
 
 The `--effort` flag maps to each provider's native reasoning API:
 
@@ -143,6 +193,27 @@ The `--effort` flag maps to each provider's native reasoning API:
 | Mistral | `reasoning_effort` | Magistral reasoning depth |
 | Groq | `reasoning_effort` | Groq reasoning depth |
 | Cohere | `thinking.budget_tokens` | Command A reasoning budget |
+
+## REPL Commands
+
+| Command | Description |
+|---|---|
+| `/model <name>` | Switch model mid-session |
+| `/permissions <mode>` | Switch permission mode |
+| `/perm cycle` | Cycle to next permission mode |
+| `/cost` | Show session token usage |
+| `/diff` | Show uncommitted git changes (`/diff full` for syntax-highlighted diff) |
+| `/compact` | Summarize history to free context (also auto-triggers at 80K chars) |
+| `/todos` | Show task list |
+| `/session` | Session info |
+| `/undo` | Remove last turn |
+| `/retry` | Re-run last message |
+| `/copy` | Copy last response |
+| `/memory` | Browse saved memories |
+| `/theme` | Switch theme |
+| `/clear` | Clear conversation |
+| `/help` | Show all commands |
+| `/exit` | Quit |
 
 ## Configuration
 
@@ -169,7 +240,7 @@ permission_mode: default
 | `TOGETHER_API_KEY` | Together API key |
 | `FIREWORKS_API_KEY` | Fireworks API key |
 
-## Project instructions
+## Project Instructions
 
 The agent loads instructions from multiple sources (closest files have highest priority):
 
@@ -194,28 +265,9 @@ Instructions support `@path/to/file` import directives for composing rules from 
 @.claude/style-guide.md
 ```
 
-## REPL commands
+## Session Persistence
 
-| Command | Description |
-|---|---|
-| `/model <name>` | Switch model |
-| `/permissions <mode>` | Switch permission mode |
-| `/perm cycle` | Cycle to next permission mode |
-| `/clear` | Clear conversation |
-| `/compact` | Summarize history to free context |
-| `/todos` | Show task list |
-| `/session` | Session info |
-| `/undo` | Remove last turn |
-| `/retry` | Re-run last message |
-| `/copy` | Copy last response |
-| `/memory` | Browse saved memories |
-| `/theme` | Switch theme |
-| `/help` | Show all commands |
-| `/exit` | Quit |
-
-## Session persistence
-
-Sessions are automatically saved to `~/.orx-coder/sessions.db` (SQLite). Resume previous sessions:
+Sessions are automatically saved to `~/.orx-coder/sessions.db` (SQLite). Context is auto-compacted when it exceeds 80K characters.
 
 ```bash
 orx-coder -c                    # continue most recent session
