@@ -1,8 +1,20 @@
-# orxhestra-code
+<p align="center">
+  <img src="https://raw.githubusercontent.com/NicolaiLassen/orxhestra-code/main/assets/logo_code_text_bottom.svg" width="400" alt="orxhestra-code logo">
+</p>
 
-AI coding agent for your terminal. Reads, writes, edits code and runs commands — powered by [orxhestra](https://github.com/NicolaiLassen/orxhestra).
+<p align="center">
+  <strong>AI coding agent for your terminal — reads, writes, edits code and runs commands.</strong>
+</p>
 
-Works with **any LangChain-supported LLM provider**.
+<p align="center">
+  <a href="https://pypi.org/project/orxhestra-code/"><img src="https://img.shields.io/pypi/v/orxhestra-code" alt="PyPI"></a>
+  <a href="https://pypi.org/project/orxhestra-code/"><img src="https://img.shields.io/pypi/pyversions/orxhestra-code" alt="Python"></a>
+  <a href="https://github.com/NicolaiLassen/orxhestra-code/blob/main/LICENSE"><img src="https://img.shields.io/github/license/NicolaiLassen/orxhestra-code" alt="License"></a>
+</p>
+
+<br>
+
+Powered by [orxhestra](https://github.com/NicolaiLassen/orxhestra). Works with **any LangChain-supported LLM provider**.
 
 ## Install
 
