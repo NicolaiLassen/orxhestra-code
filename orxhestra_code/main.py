@@ -258,9 +258,17 @@ def _register_permission_commands(perm_state: PermissionState) -> None:
 
 def _inject_permission_callback(agent: Any, perm_state: PermissionState) -> None:
     """Walk the agent tree and inject a before_tool callback for the permission mode."""
+    from orxhestra_code.permissions import _DESTRUCTIVE_TOOLS
+
     callback = make_before_tool_callback(perm_state)
     if hasattr(agent, "_callbacks"):
         agent._callbacks.before_tool = callback
+    # Mark destructive tools with require_confirmation so the spinner
+    # is suppressed while the approval prompt is active.
+    if hasattr(agent, "_tools"):
+        for name, tool in agent._tools.items():
+            if name in _DESTRUCTIVE_TOOLS:
+                object.__setattr__(tool, "require_confirmation", True)
     for child in getattr(agent, "sub_agents", []):
         _inject_permission_callback(child, perm_state)
 
