@@ -183,6 +183,8 @@ tools:
     builtin: "shell"
   artifacts:
     builtin: "artifacts"
+  memory:
+    builtin: "memory"
   todos:
     builtin: "write_todos"
   task:
@@ -200,6 +202,7 @@ agents:
       - filesystem
       - shell
       - artifacts
+      - memory
       - todos
       - task
       - human_input
