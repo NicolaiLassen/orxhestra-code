@@ -368,6 +368,7 @@ def _register_extra_commands() -> None:
         console.print("""\
 [orx.status]Commands:[/orx.status]
   /model <name>      Switch model
+  /effort <level>    Switch effort (low, medium, high)
   /permissions <mode> Switch permission mode (default, plan, accept-edits, auto-approve, trust)
   /perm cycle         Cycle to next permission mode
   /cost               Show session token usage
@@ -388,6 +389,30 @@ def _register_extra_commands() -> None:
 """)
 
     register_command("/help", _cmd_help)
+
+    async def _cmd_effort(state: Any, cmd_arg: str | None, **kw: Any) -> None:
+        console = kw.get("console")
+        if not console:
+            return
+        from orxhestra_code.config import EFFORT_PRESETS
+
+        if cmd_arg and cmd_arg in EFFORT_PRESETS:
+            preset = EFFORT_PRESETS[cmd_arg]
+            state.runner.agent.max_iterations = preset["max_iterations"]
+            console.print(
+                f"  [orx.status]Effort: {cmd_arg} "
+                f"(max {preset['max_iterations']} iterations)[/orx.status]"
+            )
+        else:
+            current_iter = getattr(state.runner.agent, "max_iterations", "?")
+            console.print(
+                f"  [orx.status]Current max iterations: {current_iter}[/orx.status]"
+            )
+            console.print(
+                "  [orx.status]Usage: /effort low|medium|high[/orx.status]"
+            )
+
+    register_command("/effort", _cmd_effort)
 
 
 def _inject_permission_callback(
