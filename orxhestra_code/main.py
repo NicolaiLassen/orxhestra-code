@@ -25,6 +25,31 @@ from orxhestra_code.permissions import (
 from orxhestra_code.prompt import SYSTEM_PROMPT
 from orxhestra_code.tools.plan_mode import make_plan_mode_tools
 
+_PROVIDER_ENV_VARS: dict[str, str] = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "google": "GOOGLE_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "mistralai": "MISTRAL_API_KEY",
+    "together": "TOGETHER_API_KEY",
+    "fireworks": "FIREWORKS_API_KEY",
+    "cohere": "COHERE_API_KEY",
+    "xai": "XAI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+}
+
+
+def _check_api_key(cfg: CoderConfig) -> None:
+    """Check if the required API key is set for the configured provider."""
+    env_var = _PROVIDER_ENV_VARS.get(cfg.provider)
+    if env_var and not os.environ.get(env_var):
+        # Don't fail for local providers.
+        if cfg.provider in ("ollama",):
+            return
+        print(f"\n  Missing {env_var}.")
+        print(f"  Set it with: export {env_var}=your-key-here\n")
+        sys.exit(1)
+
 
 def _build_permission_section(mode: str) -> str:
     """Build the permission mode section for the system prompt.
@@ -336,6 +361,34 @@ def _register_extra_commands() -> None:
 
     register_command("/diff", _cmd_diff)
 
+    async def _cmd_help(state: Any, cmd_arg: str | None, **kw: Any) -> None:
+        console = kw.get("console")
+        if not console:
+            return
+        console.print("""\
+[orx.status]Commands:[/orx.status]
+  /model <name>      Switch model
+  /permissions <mode> Switch permission mode (default, plan, accept-edits, auto-approve, trust)
+  /perm cycle         Cycle to next permission mode
+  /cost               Show session token usage
+  /diff               Show uncommitted git changes (/diff full for syntax-highlighted diff)
+  /clear              Clear session
+  /compact            Compact context (auto-triggers at 80K chars)
+  /todos              Show tasks
+  /session            Session info
+  /undo               Remove last turn
+  /retry              Re-run last message
+  /copy               Copy last response
+  /memory             List saved memories
+  /theme              Switch theme (dark/light)
+  /exit               Exit
+
+[orx.status]Multi-line input:[/orx.status]
+  Start with \\"\\"\\" or \\'\\'\\' and end with same.
+""")
+
+    register_command("/help", _cmd_help)
+
 
 def _inject_permission_callback(
     agent: Any, perm_state: PermissionState, usage_tracker: Any = None,
@@ -409,6 +462,9 @@ async def _async_main() -> None:
     # Set workspace env var for orxhestra shell/filesystem tools.
     os.environ.setdefault("AGENT_WORKSPACE", str(workspace))
 
+    # First-run API key check.
+    _check_api_key(cfg)
+
     orx_path: Path = _build_orx_yaml(cfg, workspace)
 
     # Reuse the orxhestra CLI builder and REPL.
@@ -424,7 +480,12 @@ async def _async_main() -> None:
         resumed_id = await _resolve_session_id(state, cfg.resume_session)
         if resumed_id:
             state.session_id = resumed_id
-            logging.info("Resumed session: %s", resumed_id)
+        else:
+            target = cfg.resume_session
+            if target == "latest":
+                print("  No previous session found. Starting fresh.")
+            else:
+                print(f"  Session '{target}' not found. Starting fresh.")
 
     # Create mutable permission state, inject callback, register commands.
     perm_state = PermissionState(cfg.permission_mode)
@@ -445,7 +506,7 @@ async def _async_main() -> None:
             await _run_single(state, command, workspace, auto_approve)
             return
 
-    await _repl(orx_path, state, workspace, auto_approve)
+    await _repl(orx_path, state, workspace, auto_approve, perm_state)
 
 
 async def _run_single(
@@ -478,6 +539,7 @@ async def _repl(
     state: Any,
     workspace: Path,
     auto_approve: bool = True,
+    perm_state: PermissionState | None = None,
 ) -> None:
     """Run the interactive REPL."""
     try:
@@ -491,23 +553,27 @@ async def _repl(
     from orxhestra.cli.stream import stream_response
     from orxhestra.cli.theme import make_console
 
+    from orxhestra_code import __version__ as code_version
+
     console = make_console()
 
     print_banner(orx_path, state.model_name, str(workspace), console)
     console.print(
-        "  [orx.status]type /help for commands, Ctrl+D to exit[/orx.status]\n"
+        f"  [orx.status]orx-coder v{code_version} · "
+        f"type /help for commands, Ctrl+D to exit[/orx.status]\n"
     )
 
     prompt_session: Any = None
-    prompt_style: Any = None
+    ANSI_cls: Any = None
     try:
         from orxhestra.cli.commands import get_command_names
         from prompt_toolkit import PromptSession
         from prompt_toolkit.completion import WordCompleter
         from prompt_toolkit.formatted_text import ANSI
+
+        ANSI_cls = ANSI
         from prompt_toolkit.history import FileHistory
 
-        # get_command_names() includes our registered commands automatically.
         completer = WordCompleter(get_command_names(), sentence=True)
 
         history_dir: Path = Path.home() / ".orx-coder"
@@ -516,18 +582,27 @@ async def _repl(
             history=FileHistory(str(history_dir / "history")),
             completer=completer,
         )
-        prompt_style = ANSI("\033[38;5;208morx-coder\033[0m\033[90m>\033[0m ")
     except ImportError:
         pass
+
+    def _make_prompt() -> Any:
+        """Build the prompt string with the current permission mode."""
+        mode = perm_state.mode if perm_state else "default"
+        mode_tag = "" if mode == "default" else f" ({mode})"
+        if ANSI_cls:
+            return ANSI_cls(
+                f"\033[38;5;208morx-coder{mode_tag}\033[0m\033[90m>\033[0m "
+            )
+        return f"orx-coder{mode_tag}> "
 
     while True:
         try:
             if prompt_session:
                 user_input: str = await prompt_session.prompt_async(
-                    prompt_style or "orx-coder> ",
+                    _make_prompt(),
                 )
             else:
-                user_input = input("orx-coder> ")
+                user_input = input(_make_prompt())
         except (EOFError, KeyboardInterrupt):
             console.print("\n[orx.status]Goodbye![/orx.status]")
             break
@@ -535,6 +610,26 @@ async def _repl(
         user_input = user_input.strip()
         if not user_input:
             continue
+
+        # Multiline input: start with """ or ''' and collect until closing.
+        if user_input.startswith('"""') or user_input.startswith("'''"):
+            delimiter = user_input[:3]
+            lines = [user_input[3:]]
+            while True:
+                try:
+                    if prompt_session:
+                        line = await prompt_session.prompt_async("... ")
+                    else:
+                        line = input("... ")
+                except (EOFError, KeyboardInterrupt):
+                    break
+                if line.rstrip().endswith(delimiter):
+                    lines.append(line.rstrip()[: -len(delimiter)])
+                    break
+                lines.append(line)
+            user_input = "\n".join(lines).strip()
+            if not user_input:
+                continue
 
         if user_input.startswith("/"):
             cmd_parts: list[str] = user_input.split(maxsplit=1)

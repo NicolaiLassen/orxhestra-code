@@ -66,19 +66,23 @@ def make_plan_mode_tools(
             - Testing approach
             - Any risks or concerns
         """
-        import sys
+        from rich.console import Console
+        from rich.markdown import Markdown as RichMarkdown
+        from rich.panel import Panel
 
-        # Clear spinner line and show plan.
-        sys.stdout.write("\r\033[K")
-        sys.stdout.flush()
-        print(f"\n{'=' * 60}")
-        print("IMPLEMENTATION PLAN")
-        print(f"{'=' * 60}")
-        print(plan)
-        print(f"{'=' * 60}")
+        console = Console()
+        console.print()
+        console.print(Panel(
+            RichMarkdown(plan),
+            title="[bold]Implementation Plan[/bold]",
+            border_style="cyan",
+            padding=(1, 2),
+        ))
 
         try:
-            answer = input("\n  ? Approve this plan? [y/n/e(dit)] > ").strip().lower()
+            answer = input(
+                "\n  ? Approve this plan? [y]es / [n]o / [e]dit > "
+            ).strip().lower()
         except (EOFError, KeyboardInterrupt):
             answer = "n"
 

@@ -136,13 +136,24 @@ def check_permission(
 
 
 def _format_tool_summary(tool_name: str, tool_args: dict[str, Any]) -> str:
-    """Format a one-line summary of a tool call for the approval prompt."""
+    """Format a summary of a tool call for the approval prompt."""
     if tool_name == "shell_exec":
         cmd = tool_args.get("command", "")
         return f"shell_exec: {cmd[:120]}" + ("..." if len(cmd) > 120 else "")
-    if tool_name in ("write_file", "edit_file"):
+    if tool_name == "write_file":
         path = tool_args.get("path", "?")
-        return f"{tool_name}: {path}"
+        content = tool_args.get("content", "")
+        lines = content.count("\n") + 1 if content else 0
+        return f"write_file: {path} ({lines} lines)"
+    if tool_name == "edit_file":
+        path = tool_args.get("path", "?")
+        old = tool_args.get("old", "")[:80]
+        new = tool_args.get("new", "")[:80]
+        return (
+            f"edit_file: {path}\n"
+            f"    - {old}{'...' if len(tool_args.get('old', '')) > 80 else ''}\n"
+            f"    + {new}{'...' if len(tool_args.get('new', '')) > 80 else ''}"
+        )
     if tool_name == "mkdir":
         return f"mkdir: {tool_args.get('path', '?')}"
     return f"{tool_name}({', '.join(f'{k}={v!r}' for k, v in list(tool_args.items())[:3])})"
@@ -172,7 +183,7 @@ def make_before_tool_callback(perm_state: PermissionState):
             summary = _format_tool_summary(tool_name, tool_args)
             try:
                 answer = input(
-                    f"\n  ? Allow: {summary}\n  [y/n/a(ll)] > "
+                    f"\n  ? Allow: {summary}\n  [y]es / [n]o / approve [a]ll > "
                 ).strip().lower()
             except (EOFError, KeyboardInterrupt):
                 answer = "n"
