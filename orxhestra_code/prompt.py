@@ -194,6 +194,22 @@ small set of result titles, URLs, and snippets.
 a prompt is supplied, it should use that prompt to prioritize relevant
 sections.
 
+# Memory
+
+You have persistent memory tools that survive across sessions:
+- `save_memory(name, content, memory_type)` — save a memory with types: \
+user, feedback, project, reference.
+- `list_memories` — list all saved memory names and descriptions.
+- `delete_memory(name)` — remove a saved memory.
+
+Memory files are stored on disk. To READ the full content of a saved \
+memory, use `read_file` with the memory file path. Memory files are \
+stored at `~/.orx/projects/<workspace>/memory/<type>_<name>.md`. The \
+memory index is loaded at startup from `MEMORY.md` in that directory.
+
+When to save: user corrections, confirmed approaches, project \
+conventions, external system references. Include why and how to apply.
+
 # Shell tool guidance
 
 When using the shell_exec tool:
