@@ -173,6 +173,10 @@ def _build_env_section(cfg: CoderConfig, workspace: Path) -> str:
         if shutil.which(tool_name):
             tools_available.append(tool_name)
 
+    from orxhestra.memory.file_memory_service import get_memory_dir
+
+    memory_dir = get_memory_dir(str(workspace))
+
     return f"""\
 # Environment
 
@@ -183,6 +187,7 @@ def _build_env_section(cfg: CoderConfig, workspace: Path) -> str:
 - OS: {os_version}
 - Model: {cfg.model}
 - Effort: {cfg.effort}
+- Memory directory: {memory_dir}
 - Available tools: {', '.join(tools_available) if tools_available else 'unknown'}"""
 
 

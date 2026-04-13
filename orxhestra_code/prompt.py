@@ -201,11 +201,9 @@ You have persistent memory tools that survive across sessions:
 user, feedback, project, reference.
 - `list_memories` — list all saved memory names and descriptions.
 - `delete_memory(name)` — remove a saved memory.
-
-Memory files are stored on disk. To READ the full content of a saved \
-memory, use `read_file` with the memory file path. Memory files are \
-stored at `~/.orx/projects/<workspace>/memory/<type>_<name>.md`. The \
-memory index is loaded at startup from `MEMORY.md` in that directory.
+- To READ the full content of a memory, use `read_file` on the memory \
+file. The memory directory path is in the Environment section below. \
+Files are named `<type>_<name>.md` (e.g. `project_code_style.md`).
 
 When to save: user corrections, confirmed approaches, project \
 conventions, external system references. Include why and how to apply.
