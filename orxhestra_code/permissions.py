@@ -180,10 +180,15 @@ def make_before_tool_callback(perm_state: PermissionState):
             )
 
         if decision == "ask":
+            import asyncio
+
             summary = _format_tool_summary(tool_name, tool_args)
             try:
-                answer = input(
-                    f"\n  ? Allow: {summary}\n  [y]es / [n]o / approve [a]ll > "
+                answer = (
+                    await asyncio.to_thread(
+                        input,
+                        f"\n  ? Allow: {summary}\n  [y]es / [n]o / approve [a]ll > ",
+                    )
                 ).strip().lower()
             except (EOFError, KeyboardInterrupt):
                 answer = "n"
