@@ -955,6 +955,12 @@ async def _repl(
             else:
                 continue
 
+        # Track event count to detect compaction.
+        _pre_session = await state.runner.get_or_create_session(
+            user_id="user", session_id=state.session_id,
+        )
+        _pre_count = len(_pre_session.events)
+
         auto_approve = await stream_response(
             state.runner,
             state.session_id,
@@ -965,6 +971,21 @@ async def _repl(
             auto_approve=auto_approve,
         )
         state.turn_count += 1
+
+        # Check if compaction happened (new compaction event added).
+        _post_session = await state.runner.get_or_create_session(
+            user_id="user", session_id=state.session_id,
+        )
+        if len(_post_session.events) > _pre_count:
+            for _evt in _post_session.events[_pre_count:]:
+                if _evt.actions.compaction is not None:
+                    _n = _evt.actions.compaction.event_count
+                    console.print(
+                        f"  [orx.muted]Context compacted — {_n} old events "
+                        f"summarized.[/orx.muted]"
+                    )
+                    break
+
         console.print()
 
 
