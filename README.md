@@ -93,6 +93,8 @@ echo "fix the failing tests" | orx-coder
 
 The agent has access to these built-in tools:
 
+`web_search` and `web_fetch` do not require a separate search API key. They use open-web search/fetching locally inside the CLI.
+
 ### File Operations
 - **ls** — List files and directories
 - **read_file** — Read files with line numbers, offset/limit pagination, image support
@@ -104,6 +106,10 @@ The agent has access to these built-in tools:
 
 ### Shell
 - **shell_exec** — Run shell commands (git, npm, pip, make, tests, etc.)
+
+### Web
+- **web_search** — Search the open web without an extra search API key
+- **web_fetch** — Fetch a URL and extract readable content from the page
 
 ### Planning
 - **enter_plan_mode** — Switch to read-only mode for codebase exploration. The agent reads files, searches, and analyzes before writing code.
@@ -127,13 +133,13 @@ The agent has access to these built-in tools:
 
 Control what the agent can do without prompting:
 
-| Mode | Reads | Edits | Shell | Use case |
-|---|---|---|---|---|
-| `default` | auto | prompt | prompt | Normal usage — you approve each destructive action |
-| `plan` | auto | **deny** | **deny** | Read-only exploration and analysis |
-| `accept-edits` | auto | auto | prompt | Focused coding — edits are expected, shell needs approval |
-| `auto-approve` | auto | auto | auto | Full speed — trust the agent completely |
-| `trust` | auto | auto | auto | Like auto-approve with no warnings |
+| Mode | Reads | Edits | Shell | Web | Use case |
+|---|---|---|---|---|---|
+| `default` | auto | prompt | prompt | prompt | Normal usage — you approve each destructive or external action |
+| `plan` | auto | **deny** | **deny** | **deny** | Read-only exploration and analysis |
+| `accept-edits` | auto | auto | prompt | prompt | Focused coding — edits are expected, shell/web need approval |
+| `auto-approve` | auto | auto | auto | auto | Full speed — trust the agent completely |
+| `trust` | auto | auto | auto | auto | Like auto-approve with no warnings |
 
 Switch mid-session:
 

@@ -7,14 +7,14 @@ which are denied outright.
 Modes
 -----
 default
-    Prompt for destructive tools (write, edit, shell, mkdir).
-    Read-only tools are auto-approved.
+    Prompt for destructive tools (write, edit, shell, mkdir) and web tools.
+    Read-only local tools are auto-approved.
 plan
-    Read-only analysis mode.  All write/edit/shell tools are denied.
-    The agent can only read files, search, and think.
+    Read-only analysis mode.  All write/edit/shell/web tools are denied.
+    The agent can only read local files, search locally, and think.
 accept-edits
     Auto-approve file operations (write, edit, mkdir).
-    Shell commands still require approval.
+    Shell commands and web tools still require approval.
 auto-approve
     Auto-approve everything.  No prompts.
 trust
@@ -39,6 +39,11 @@ _SHELL_TOOLS: frozenset[str] = frozenset({
 
 _DESTRUCTIVE_TOOLS: frozenset[str] = _WRITE_TOOLS | _SHELL_TOOLS
 
+_NETWORK_TOOLS: frozenset[str] = frozenset({
+    "web_search",
+    "web_fetch",
+})
+
 # Read-only tools that are always safe.
 _READ_TOOLS: frozenset[str] = frozenset({
     "ls",
@@ -60,9 +65,9 @@ PERMISSION_MODES: tuple[str, ...] = (
 
 # Short descriptions for display.
 PERMISSION_MODE_LABELS: dict[str, str] = {
-    "default": "default (prompt for writes/shell)",
+    "default": "default (prompt for writes/shell/web)",
     "plan": "plan (read-only)",
-    "accept-edits": "accept-edits (auto-approve edits, prompt shell)",
+    "accept-edits": "accept-edits (auto-approve edits, prompt shell/web)",
     "auto-approve": "auto-approve (no prompts)",
     "trust": "trust (no prompts, no warnings)",
 }
@@ -118,19 +123,19 @@ def check_permission(
         return "allow"
 
     if mode == "plan":
-        if tool_name in _DESTRUCTIVE_TOOLS:
+        if tool_name in _DESTRUCTIVE_TOOLS or tool_name in _NETWORK_TOOLS:
             return "deny"
         return "allow"
 
     if mode == "accept-edits":
         if tool_name in _WRITE_TOOLS:
             return "allow"
-        if tool_name in _SHELL_TOOLS:
+        if tool_name in _SHELL_TOOLS or tool_name in _NETWORK_TOOLS:
             return "ask"
         return "allow"
 
     # default mode
-    if tool_name in _DESTRUCTIVE_TOOLS:
+    if tool_name in _DESTRUCTIVE_TOOLS or tool_name in _NETWORK_TOOLS:
         return "ask"
     return "allow"
 
@@ -156,6 +161,11 @@ def _format_tool_summary(tool_name: str, tool_args: dict[str, Any]) -> str:
         )
     if tool_name == "mkdir":
         return f"mkdir: {tool_args.get('path', '?')}"
+    if tool_name == "web_search":
+        query = str(tool_args.get("query", ""))
+        return f"web_search: {query[:120]}" + ("..." if len(query) > 120 else "")
+    if tool_name == "web_fetch":
+        return f"web_fetch: {tool_args.get('url', '?')}"
     return f"{tool_name}({', '.join(f'{k}={v!r}' for k, v in list(tool_args.items())[:3])})"
 
 

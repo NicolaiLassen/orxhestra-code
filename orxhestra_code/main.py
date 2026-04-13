@@ -24,6 +24,7 @@ from orxhestra_code.permissions import (
 )
 from orxhestra_code.prompt import SYSTEM_PROMPT
 from orxhestra_code.tools.plan_mode import make_plan_mode_tools
+from orxhestra_code.tools.web import make_web_tools
 
 _PROVIDER_ENV_VARS: dict[str, str] = {
     "anthropic": "ANTHROPIC_API_KEY",
@@ -62,10 +63,11 @@ def _build_permission_section(mode: str) -> str:
 # Permission mode: default
 
 Tools are executed in the **default** permission mode. Destructive tools \
-(file writes, edits, shell commands, directory creation) require user \
-approval before execution. Read-only tools (file reads, search, glob) are \
-auto-approved. If the user denies a tool call, do not re-attempt the exact \
-same call. Instead, think about why it was denied and adjust your approach.""",
+(file writes, edits, shell commands, directory creation) and web tools \
+(`web_search`, `web_fetch`) require user approval before execution. \
+Read-only local tools (file reads, glob, grep, ls) are auto-approved. \
+If the user denies a tool call, do not re-attempt the exact same call. \
+Instead, think about why it was denied and adjust your approach.""",
 
         "plan": """\
 # Permission mode: plan (read-only)
@@ -78,6 +80,7 @@ You are in **plan mode** — a read-only analysis mode. You can ONLY:
 You CANNOT and MUST NOT attempt to:
 - Write or edit any files
 - Run shell commands
+- Use `web_search` or `web_fetch`
 - Create directories
 - Make any changes to the codebase
 
@@ -89,25 +92,25 @@ different permission mode when ready to implement.""",
 # Permission mode: accept-edits
 
 File operations (write, edit, mkdir) are **auto-approved** — you can \
-freely create and modify files without prompting. Shell commands still \
-require user approval. Read-only tools are auto-approved. Use this mode \
-for focused coding tasks where file changes are expected.""",
+freely create and modify files without prompting. Shell commands and web \
+tools still require user approval. Read-only local tools are auto-approved. \
+Use this mode for focused coding tasks where file changes are expected.""", 
 
         "auto-approve": """\
 # Permission mode: auto-approve
 
 All tool calls are **auto-approved** — no prompts will be shown. You can \
-freely read, write, edit files and run shell commands. Exercise extra \
-caution with destructive operations since the user will not be prompted \
-to confirm. Prefer safe, reversible actions.""",
+freely read, write, edit files, use web tools, and run shell commands. \
+Exercise extra caution with destructive operations since the user will not \
+be prompted to confirm. Prefer safe, reversible actions.""", 
 
         "trust": """\
 # Permission mode: trust
 
 All tool calls are **auto-approved** with no warnings. Full autonomous \
 operation. Exercise maximum caution with destructive operations — there \
-is no safety net. Only use destructive git operations or file deletions \
-when you are absolutely certain they are correct.""",
+is no safety net. Only use destructive git operations, web actions, or \
+file deletions when you are absolutely certain they are correct.""", 
     }
     return sections.get(mode, sections["default"])
 
@@ -421,7 +424,7 @@ def _inject_permission_callback(
     agent: Any, perm_state: PermissionState, usage_tracker: Any = None,
 ) -> None:
     """Walk the agent tree and inject callbacks for permissions and usage tracking."""
-    from orxhestra_code.permissions import _DESTRUCTIVE_TOOLS
+    from orxhestra_code.permissions import _DESTRUCTIVE_TOOLS, _NETWORK_TOOLS
 
     callback = make_before_tool_callback(perm_state)
     if hasattr(agent, "_callbacks"):
@@ -434,11 +437,11 @@ def _inject_permission_callback(
                 if input_t or output_t:
                     usage_tracker(input_t, output_t)
             agent._callbacks.after_model = _after_model
-    # Mark destructive tools with require_confirmation so the spinner
-    # is suppressed while the approval prompt is active.
+    # Mark prompting tools with require_confirmation so the spinner is
+    # suppressed while the approval prompt is active.
     if hasattr(agent, "_tools"):
         for name, tool in agent._tools.items():
-            if name in _DESTRUCTIVE_TOOLS:
+            if name in _DESTRUCTIVE_TOOLS or name in _NETWORK_TOOLS:
                 object.__setattr__(tool, "require_confirmation", True)
     for child in getattr(agent, "sub_agents", []):
         _inject_permission_callback(child, perm_state)
@@ -468,6 +471,13 @@ def _inject_plan_tools(agent: Any, perm_state: PermissionState) -> None:
     """Add enter/exit plan mode tools to the root agent."""
     if hasattr(agent, "_tools"):
         for tool in make_plan_mode_tools(perm_state):
+            agent._tools[tool.name] = tool
+
+
+def _inject_web_tools(agent: Any) -> None:
+    """Add web search and fetch tools to the root agent."""
+    if hasattr(agent, "_tools"):
+        for tool in make_web_tools():
             agent._tools[tool.name] = tool
 
 
@@ -518,8 +528,9 @@ async def _async_main() -> None:
     perm_state = PermissionState(cfg.permission_mode)
     _register_extra_commands()
     usage_tracker = getattr(_register_extra_commands, "track_usage", None)
-    _inject_permission_callback(state.runner.agent, perm_state, usage_tracker)
     _inject_plan_tools(state.runner.agent, perm_state)
+    _inject_web_tools(state.runner.agent)
+    _inject_permission_callback(state.runner.agent, perm_state, usage_tracker)
     _register_permission_commands(perm_state)
 
     # Always tell orxhestra's CLI to auto_approve — our before_tool callback

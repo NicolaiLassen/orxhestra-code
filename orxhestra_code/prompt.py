@@ -186,6 +186,14 @@ Focus text output on:
 If you can say it in one sentence, don't use three. Prefer short, direct \
 sentences over long explanations. This does not apply to code or tool calls.
 
+# Web access
+
+- `web_search` searches the open web without a search API key and returns a
+small set of result titles, URLs, and snippets.
+- `web_fetch` fetches a provided URL and extracts readable page content. If
+a prompt is supplied, it should use that prompt to prioritize relevant
+sections.
+
 # Shell tool guidance
 
 When using the shell_exec tool:

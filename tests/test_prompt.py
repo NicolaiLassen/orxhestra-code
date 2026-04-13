@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from orxhestra_code.claude_md import load_project_instructions
 from orxhestra_code.config import effort_model_kwargs, load_config
 from orxhestra_code.permissions import PermissionState, check_permission
 from orxhestra_code.prompt import SYSTEM_PROMPT
+from orxhestra_code.tools import web as web_tools
 
 
 def test_system_prompt_not_empty() -> None:
@@ -23,6 +26,7 @@ def test_system_prompt_has_key_sections() -> None:
     assert "# Creating pull requests" in SYSTEM_PROMPT
     assert "# Shell tool guidance" in SYSTEM_PROMPT
     assert "# Output efficiency" in SYSTEM_PROMPT
+    assert "# Web access" in SYSTEM_PROMPT
     assert "NEVER skip hooks" in SYSTEM_PROMPT
     assert "HEREDOC" in SYSTEM_PROMPT
 
@@ -235,3 +239,122 @@ def test_permission_state_cycle() -> None:
     assert ps.cycle() == "auto-approve"
     assert ps.cycle() == "trust"
     assert ps.cycle() == "default"  # wraps around
+
+
+def test_permission_default_mode_web_tools() -> None:
+    assert check_permission("default", "web_search", {}) == "ask"
+    assert check_permission("default", "web_fetch", {}) == "ask"
+
+
+
+def test_permission_plan_mode_web_tools() -> None:
+    assert check_permission("plan", "web_search", {}) == "deny"
+    assert check_permission("plan", "web_fetch", {}) == "deny"
+
+
+
+def test_permission_accept_edits_mode_web_tools() -> None:
+    assert check_permission("accept-edits", "web_search", {}) == "ask"
+    assert check_permission("accept-edits", "web_fetch", {}) == "ask"
+
+
+
+def test_web_candidate_urls() -> None:
+    assert web_tools._candidate_urls("example.com") == ["https://example.com"]
+    assert web_tools._candidate_urls("https://example.com") == ["https://example.com"]
+    assert web_tools._candidate_urls("http://example.com") == [
+        "https://example.com",
+        "http://example.com",
+    ]
+    with pytest.raises(ValueError):
+        web_tools._candidate_urls("file:///tmp/test.txt")
+
+
+
+def test_web_search_result_formatting() -> None:
+    result = web_tools._format_search_results(
+        "python",
+        [{
+            "title": "Python",
+            "href": "https://www.python.org",
+            "body": "The official home of Python.",
+        }],
+    )
+    assert 'Open web results for "python":' in result
+    assert "https://www.python.org" in result
+    assert "The official home of Python." in result
+
+
+
+def test_web_fetch_chunk_selection_prefers_matching_content() -> None:
+    markdown = (
+        "Install steps for the CLI.\n\n"
+        "Caching behavior and cache invalidation details.\n\n"
+        "Release notes for unrelated features."
+    )
+    result = web_tools._select_relevant_chunks(markdown, "cache invalidation")
+    assert "cache invalidation" in result.lower()
+    assert "Install steps" not in result
+
+
+
+def test_web_fetch_rejects_binary_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeResponse:
+        headers = {"content-type": "application/pdf", "content-length": "4"}
+        content = b"%PDF"
+        text = ""
+        url = "https://example.com/file.pdf"
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self) -> FakeClient:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    monkeypatch.setattr(web_tools.httpx, "Client", lambda **kwargs: FakeClient())
+    result = web_tools.web_fetch("https://example.com/file.pdf")
+    assert "binary or unsupported" in result
+
+
+
+def test_web_fetch_extracts_relevant_html(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeResponse:
+        headers = {"content-type": "text/html; charset=utf-8", "content-length": "64"}
+        content = b"<html><title>Docs</title></html>"
+        text = "<html><title>Docs</title><body>ignored</body></html>"
+        url = "https://example.com/docs"
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self) -> FakeClient:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    monkeypatch.setattr(web_tools.httpx, "Client", lambda **kwargs: FakeClient())
+    monkeypatch.setattr(
+        web_tools.trafilatura,
+        "extract",
+        lambda text, output_format=None: (
+            "Install steps.\n\nCaching behavior and cache invalidation."
+        ),
+    )
+
+    result = web_tools.web_fetch("https://example.com/docs", prompt="cache invalidation")
+    assert "Fetched: https://example.com/docs" in result
+    assert "Title: Docs" in result
+    assert "Caching behavior and cache invalidation." in result
+    assert "Install steps." not in result
