@@ -824,34 +824,6 @@ def _register_extra_commands() -> None:
 
     register_command("/help", _cmd_help)
 
-    async def _cmd_effort(state: Any, cmd_arg: str | None, **kw: Any) -> None:
-        """Show or update the active reasoning effort.
-
-        Parameters
-        ----------
-        state : Any
-            REPL command state.
-        cmd_arg : str or ``None``, optional
-            Optional command argument.
-        **kw : Any
-            Additional command context.
-
-        Returns
-        -------
-        None
-            This command does not return a value.
-        """
-        await _handle_effort_command(
-            state,
-            cmd_arg,
-            console=kw.get("console"),
-            runtime_ctx=kw.get("runtime_ctx"),
-            perm_state=kw.get("perm_state"),
-            usage_tracker=kw.get("usage_tracker"),
-        )
-
-    register_command("/effort", _cmd_effort)
-
 
 def _inject_permission_callback(
     agent: Any, perm_state: PermissionState, usage_tracker: Any = None,
@@ -1049,6 +1021,18 @@ async def _async_main() -> None:
     _inject_permission_callback(state.runner.agent, perm_state, usage_tracker)
     _register_permission_commands(perm_state)
 
+    # Register /effort with closures over runtime_ctx, perm_state, usage_tracker.
+    async def _cmd_effort_live(st: Any, cmd_arg: str | None, **kw: Any) -> None:
+        await _handle_effort_command(
+            st, cmd_arg,
+            console=kw.get("console"),
+            runtime_ctx=runtime_ctx,
+            perm_state=perm_state,
+            usage_tracker=usage_tracker,
+        )
+
+    register_command("/effort", _cmd_effort_live)
+
     # Always tell orxhestra's CLI to auto_approve — our before_tool callback
     # handles all approval logic. This prevents two competing prompts.
     auto_approve: bool = True
@@ -1235,9 +1219,6 @@ async def _repl(
                 console=console,
                 orx_path=runtime_ctx.orx_path,
                 workspace=str(runtime_ctx.workspace),
-                runtime_ctx=runtime_ctx,
-                perm_state=perm_state,
-                usage_tracker=usage_tracker,
             )
             # auto_approve stays True — our before_tool callback handles it.
             if not state.should_continue:
