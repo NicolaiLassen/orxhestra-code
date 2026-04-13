@@ -278,12 +278,12 @@ def load_config(argv: list[str] | None = None) -> CoderConfig:
         cfg.resume_session = args.resume
     elif getattr(args, "continue_session", False):
         cfg.resume_session = "latest"
+    if env_perm := os.environ.get("ORX_PERMISSION_MODE"):
+        cfg.permission_mode = env_perm
     if getattr(args, "permission_mode", None):
         cfg.permission_mode = args.permission_mode
     if getattr(args, "auto_approve", False):
         cfg.permission_mode = "auto-approve"
-    if env_perm := os.environ.get("ORX_PERMISSION_MODE"):
-        cfg.permission_mode = env_perm
 
     # Max iterations — configurable, not tied to effort.
     if env_iter := os.environ.get("ORX_MAX_ITERATIONS"):

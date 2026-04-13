@@ -9,10 +9,24 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import subprocess
 import sys
 import tempfile
+
+# ── RuntimeContext + rebuild_state (our logic, not SDK's) ────────
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+# ── SDK imports (direct, no wrapper layer) ───────────────────────
+from orxhestra.cli.commands import (
+    get_command_names,
+    handle_slash_command,
+    register_command,
+)
+from orxhestra.cli.render import print_banner
+from orxhestra.cli.stream import stream_response
+from orxhestra.cli.theme import make_console
 
 from orxhestra_code.claude_md import load_project_instructions
 from orxhestra_code.config import CoderConfig, effort_model_kwargs, load_config
@@ -26,6 +40,45 @@ from orxhestra_code.prompt import SYSTEM_PROMPT
 from orxhestra_code.tools.plan_mode import make_plan_mode_tools
 from orxhestra_code.tools.web import make_web_tools
 
+
+@dataclass
+class RuntimeContext:
+    """Mutable runtime context shared across the CLI loop and commands."""
+
+    cfg: CoderConfig
+    workspace: Path
+    orx_path: Path
+
+
+async def build_state(orx_path: Path, model_name: str, workspace: str) -> Any:
+    """Build REPL state from an ``orx.yaml`` file."""
+    from orxhestra.cli.builder import build_from_orx
+
+    return await build_from_orx(orx_path, model_name, workspace)
+
+
+async def rebuild_state(
+    state: Any, orx_path: Path, model_name: str, workspace: str,
+) -> None:
+    """Rebuild runtime state while preserving session history."""
+    from orxhestra.cli.config import DEFAULT_USER_ID
+
+    old_session = await state.runner.get_or_create_session(
+        user_id=DEFAULT_USER_ID, session_id=state.session_id,
+    )
+    old_events = list(old_session.events)
+
+    new_state = await build_state(orx_path, model_name, workspace)
+    state.runner = new_state.runner
+    state.todo_list = new_state.todo_list
+    state.model_name = new_state.model_name
+    state.turn_count = 0
+
+    new_session = await state.runner.get_or_create_session(
+        user_id=DEFAULT_USER_ID, session_id=state.session_id,
+    )
+    new_session.events.extend(old_events)
+
 _PROVIDER_ENV_VARS: dict[str, str] = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
@@ -38,6 +91,8 @@ _PROVIDER_ENV_VARS: dict[str, str] = {
     "xai": "XAI_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
 }
+
+_DIFF_PREVIEW_LINE_LIMIT = 160
 
 
 def _check_api_key(cfg: CoderConfig) -> None:
@@ -299,8 +354,6 @@ def _register_permission_commands(perm_state: PermissionState) -> None:
     None
         This function does not return a value.
     """
-    from orxhestra.cli.commands import register_command
-
     async def _cmd_permissions(state: Any, cmd_arg: str | None, **kw: Any) -> None:
         """Handle permission-mode slash commands.
 
@@ -353,6 +406,285 @@ def _register_permission_commands(perm_state: PermissionState) -> None:
     register_command("/mode", _cmd_permissions)
 
 
+def _current_model_id(state: Any, cfg: CoderConfig) -> str:
+    """Return the active provider/model identifier for the current session.
+
+    Parameters
+    ----------
+    state : Any
+        REPL state containing the current model name.
+    cfg : CoderConfig
+        Mutable runtime configuration.
+
+    Returns
+    -------
+    str
+        Full provider/model identifier.
+    """
+    model_name = getattr(state, "model_name", cfg.model_name)
+    if isinstance(model_name, str) and "/" in model_name:
+        return model_name
+    return f"{cfg.provider}/{model_name}"
+
+
+async def _handle_effort_command(
+    state: Any,
+    cmd_arg: str | None,
+    *,
+    console: Any,
+    runtime_ctx: RuntimeContext | None,
+    perm_state: PermissionState | None,
+    usage_tracker: Any = None,
+) -> None:
+    """Show or update the active reasoning effort.
+
+    Parameters
+    ----------
+    state : Any
+        REPL command state.
+    cmd_arg : str or ``None``
+        Optional effort level.
+    console : Any
+        Rich console for status rendering.
+    runtime_ctx : RuntimeContext or ``None``
+        Mutable runtime context for the current REPL session.
+    perm_state : PermissionState or ``None``
+        Mutable permission state shared with callbacks.
+    usage_tracker : Any, optional
+        Token usage callback to preserve after rebuild.
+
+    Returns
+    -------
+    None
+        This coroutine does not return a value.
+    """
+    if not console:
+        return
+    if runtime_ctx is None or perm_state is None:
+        console.print("  [orx.error]Effort switching is unavailable.[/orx.error]")
+        return
+    if not cmd_arg:
+        console.print(
+            f"  [orx.status]Current effort: {runtime_ctx.cfg.effort}[/orx.status]"
+        )
+        console.print(
+            "  [orx.status]Usage: /effort <low|medium|high>[/orx.status]"
+        )
+        return
+
+    effort = cmd_arg.strip().lower()
+    if effort not in {"low", "medium", "high"}:
+        console.print(
+            "  [orx.status]Usage: /effort <low|medium|high>[/orx.status]"
+        )
+        return
+
+    runtime_ctx.cfg.model = _current_model_id(state, runtime_ctx.cfg)
+    runtime_ctx.cfg.effort = effort
+    runtime_ctx.orx_path = _build_orx_yaml(runtime_ctx.cfg, runtime_ctx.workspace)
+
+    try:
+        await rebuild_state(
+            state,
+            runtime_ctx.orx_path,
+            runtime_ctx.cfg.model_name,
+            str(runtime_ctx.workspace),
+        )
+    except Exception as exc:
+        console.print(f"  [orx.error]Error: {exc}[/orx.error]")
+        return
+
+    _inject_plan_tools(state.runner.agent, perm_state)
+    _inject_web_tools(state.runner.agent)
+    _inject_permission_callback(state.runner.agent, perm_state, usage_tracker)
+    console.print(f"  [orx.status]Effort: {effort}[/orx.status]")
+
+
+def _parse_diff_args(cmd_arg: str | None) -> tuple[str, bool] | None:
+    """Parse scope and output mode for ``/diff``.
+
+    Parameters
+    ----------
+    cmd_arg : str or ``None``
+        Optional command argument.
+
+    Returns
+    -------
+    tuple[str, bool] or ``None``
+        Parsed ``(scope, show_full)`` values, or ``None`` when the input is
+        invalid.
+    """
+    scope: str | None = None
+    show_full = False
+    if not cmd_arg:
+        return "all", show_full
+
+    for token in cmd_arg.split():
+        value = token.lower()
+        if value in {"full", "--full", "-f"}:
+            show_full = True
+        elif value in {"staged", "--staged", "cached", "--cached"}:
+            if scope and scope != "staged":
+                return None
+            scope = "staged"
+        elif value in {"unstaged", "--unstaged", "working"}:
+            if scope and scope != "unstaged":
+                return None
+            scope = "unstaged"
+        else:
+            return None
+
+    return scope or "all", show_full
+
+
+
+def _run_git_capture(args: list[str], workspace: str | None) -> str:
+    """Run a git command and return captured standard output.
+
+    Parameters
+    ----------
+    args : list[str]
+        Git arguments excluding the ``git`` executable itself.
+    workspace : str or ``None``
+        Working directory for the command.
+
+    Returns
+    -------
+    str
+        Captured standard output with trailing whitespace removed.
+    """
+    result = subprocess.run(
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        cwd=workspace,
+        timeout=10,
+    )
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        if not message:
+            message = "git command failed."
+        raise RuntimeError(message)
+    return result.stdout.strip()
+
+
+
+def _preview_patch(
+    diff_text: str,
+    max_lines: int = _DIFF_PREVIEW_LINE_LIMIT,
+) -> tuple[str, bool]:
+    """Return a truncated patch preview when needed.
+
+    Parameters
+    ----------
+    diff_text : str
+        Full unified diff text.
+    max_lines : int, optional
+        Maximum number of lines to include in the preview.
+
+    Returns
+    -------
+    tuple[str, bool]
+        Preview text and whether the patch was truncated.
+    """
+    lines = diff_text.splitlines()
+    if len(lines) <= max_lines:
+        return diff_text, False
+    return "\n".join(lines[:max_lines]), True
+
+
+
+async def _handle_diff_command(
+    cmd_arg: str | None,
+    *,
+    console: Any,
+    workspace: str | None,
+) -> None:
+    """Show git changes with a patch preview.
+
+    Parameters
+    ----------
+    cmd_arg : str or ``None``
+        Optional command argument.
+    console : Any
+        Rich console for status rendering.
+    workspace : str or ``None``
+        Workspace directory used for git commands.
+
+    Returns
+    -------
+    None
+        This coroutine does not return a value.
+    """
+    if not console:
+        return
+
+    parsed = _parse_diff_args(cmd_arg)
+    if parsed is None:
+        console.print(
+            "  [orx.status]Usage: /diff [staged|unstaged] [full][/orx.status]"
+        )
+        return
+
+    scope, show_full = parsed
+    sections: list[tuple[str, list[str]]] = []
+    if scope in {"all", "unstaged"}:
+        sections.append(("Unstaged changes", ["diff"]))
+    if scope in {"all", "staged"}:
+        sections.append(("Staged changes", ["diff", "--cached"]))
+
+    try:
+        rendered_sections: list[tuple[str, str, str]] = []
+        for label, base_args in sections:
+            stat = _run_git_capture([*base_args, "--stat"], workspace)
+            patch = _run_git_capture(base_args, workspace)
+            if not patch:
+                continue
+            rendered_sections.append((label, stat, patch))
+
+        if not rendered_sections:
+            console.print("  [orx.status]No uncommitted changes.[/orx.status]")
+            return
+
+        from rich.syntax import Syntax
+
+        for index, (label, stat, patch) in enumerate(rendered_sections):
+            if index:
+                console.print()
+            console.print(f"  [orx.status]{label}:[/orx.status]")
+            if stat:
+                console.print(_indent(stat, 2))
+            if show_full:
+                patch_text, truncated = patch, False
+            else:
+                patch_text, truncated = _preview_patch(patch)
+            console.print(
+                "  [orx.status]Patch:[/orx.status]"
+                if show_full
+                else "  [orx.status]Patch preview:[/orx.status]"
+            )
+            console.print(
+                Syntax(
+                    patch_text,
+                    "diff",
+                    theme="monokai",
+                    line_numbers=False,
+                )
+            )
+            if truncated:
+                console.print(
+                    "  [orx.status]Preview truncated. "
+                    "Use /diff full for the full patch.[/orx.status]"
+                )
+    except FileNotFoundError:
+        console.print("  [orx.status]git not found.[/orx.status]")
+    except subprocess.TimeoutExpired:
+        console.print("  [orx.status]git diff timed out.[/orx.status]")
+    except RuntimeError as exc:
+        console.print(f"  [orx.error]Error: {exc}[/orx.error]")
+
+
+
 def _register_extra_commands() -> None:
     """Register auxiliary slash commands.
 
@@ -361,8 +693,6 @@ def _register_extra_commands() -> None:
     None
         This function does not return a value.
     """
-    from orxhestra.cli.commands import register_command
-
     # Cumulative session token tracking.
     _session_usage: dict[str, int] = {
         "prompt_tokens": 0,
@@ -425,7 +755,7 @@ def _register_extra_commands() -> None:
     register_command("/usage", _cmd_cost)
 
     async def _cmd_diff(state: Any, cmd_arg: str | None, **kw: Any) -> None:
-        """Show the current git diff summary or full diff.
+        """Show git changes with a patch preview.
 
         Parameters
         ----------
@@ -441,40 +771,11 @@ def _register_extra_commands() -> None:
         None
             This command does not return a value.
         """
-        console = kw.get("console")
-        if not console:
-            return
-        import subprocess
-
-        try:
-            result = subprocess.run(
-                ["git", "diff", "--stat"],
-                capture_output=True, text=True, timeout=10,
-            )
-            stat = result.stdout.strip()
-            if not stat:
-                console.print("  [orx.status]No uncommitted changes.[/orx.status]")
-                return
-            console.print("  [orx.status]Uncommitted changes:[/orx.status]")
-            console.print(f"  {stat}")
-
-            # Show full diff if --full or -f is passed.
-            if cmd_arg in ("--full", "-f", "full"):
-                full = subprocess.run(
-                    ["git", "diff"],
-                    capture_output=True, text=True, timeout=10,
-                )
-                if full.stdout.strip():
-                    from rich.syntax import Syntax
-
-                    syntax = Syntax(
-                        full.stdout, "diff", theme="monokai", line_numbers=False,
-                    )
-                    console.print(syntax)
-        except FileNotFoundError:
-            console.print("  [orx.status]git not found.[/orx.status]")
-        except subprocess.TimeoutExpired:
-            console.print("  [orx.status]git diff timed out.[/orx.status]")
+        await _handle_diff_command(
+            cmd_arg,
+            console=kw.get("console"),
+            workspace=kw.get("workspace"),
+        )
 
     register_command("/diff", _cmd_diff)
 
@@ -505,7 +806,7 @@ def _register_extra_commands() -> None:
   /permissions <mode> Switch permission mode (default, plan, accept-edits, auto-approve, trust)
   /perm cycle         Cycle to next permission mode
   /cost               Show session token usage
-  /diff               Show uncommitted git changes (/diff full for syntax-highlighted diff)
+  /diff [scope] [full] Show git changes with previews (/diff staged, /diff full)
   /clear              Clear session
   /compact            Compact context (auto-triggers at 80K chars)
   /todos              Show tasks
@@ -524,7 +825,7 @@ def _register_extra_commands() -> None:
     register_command("/help", _cmd_help)
 
     async def _cmd_effort(state: Any, cmd_arg: str | None, **kw: Any) -> None:
-        """Show or update the max-iteration setting.
+        """Show or update the active reasoning effort.
 
         Parameters
         ----------
@@ -540,28 +841,14 @@ def _register_extra_commands() -> None:
         None
             This command does not return a value.
         """
-        console = kw.get("console")
-        if not console:
-            return
-        if cmd_arg:
-            try:
-                n = int(cmd_arg)
-                state.runner.agent.max_iterations = n
-                console.print(
-                    f"  [orx.status]Max iterations: {n}[/orx.status]"
-                )
-            except ValueError:
-                console.print(
-                    "  [orx.status]Usage: /effort <number> (e.g. /effort 200)[/orx.status]"
-                )
-        else:
-            current_iter = getattr(state.runner.agent, "max_iterations", "?")
-            console.print(
-                f"  [orx.status]Max iterations: {current_iter}[/orx.status]"
-            )
-            console.print(
-                "  [orx.status]Usage: /effort <number>[/orx.status]"
-            )
+        await _handle_effort_command(
+            state,
+            cmd_arg,
+            console=kw.get("console"),
+            runtime_ctx=kw.get("runtime_ctx"),
+            perm_state=kw.get("perm_state"),
+            usage_tracker=kw.get("usage_tracker"),
+        )
 
     register_command("/effort", _cmd_effort)
 
@@ -729,14 +1016,16 @@ async def _async_main() -> None:
     # First-run API key check.
     _check_api_key(cfg)
 
-    orx_path: Path = _build_orx_yaml(cfg, workspace)
+    runtime_ctx = RuntimeContext(
+        cfg=cfg,
+        workspace=workspace,
+        orx_path=_build_orx_yaml(cfg, workspace),
+    )
 
-    # Reuse the orxhestra CLI builder and REPL.
-    from orxhestra.cli.builder import build_from_orx
-    from orxhestra.cli.state import ReplState
-
-    state: ReplState = await build_from_orx(
-        orx_path, cfg.model_name, str(workspace),
+    state = await build_state(
+        runtime_ctx.orx_path,
+        cfg.model_name,
+        str(workspace),
     )
 
     # Handle session resume.
@@ -768,14 +1057,16 @@ async def _async_main() -> None:
     if not sys.stdin.isatty():
         command: str = sys.stdin.read().strip()
         if command:
-            await _run_single(state, command, workspace, auto_approve)
+            await _run_single(state, command, auto_approve)
             return
 
-    await _repl(orx_path, state, workspace, auto_approve, perm_state)
+    await _repl(runtime_ctx, state, auto_approve, perm_state, usage_tracker)
 
 
 async def _run_single(
-    state: Any, command: str, workspace: Path, auto_approve: bool = False,
+    state: Any,
+    command: str,
+    auto_approve: bool = False,
 ) -> None:
     """Run a single command and exit.
 
@@ -785,8 +1076,6 @@ async def _run_single(
         REPL state containing the runner.
     command : str
         Command text to execute.
-    workspace : Path
-        Workspace directory for the session.
     auto_approve : bool, optional
         Whether tool execution should auto-approve prompts.
 
@@ -800,9 +1089,6 @@ async def _run_single(
     except ImportError:
         print("Error: rich is required. Install with: pip install orxhestra[cli]")
         sys.exit(1)
-
-    from orxhestra.cli.stream import stream_response
-    from orxhestra.cli.theme import make_console
 
     console = make_console()
     await stream_response(
@@ -817,26 +1103,26 @@ async def _run_single(
 
 
 async def _repl(
-    orx_path: Path,
+    runtime_ctx: RuntimeContext,
     state: Any,
-    workspace: Path,
     auto_approve: bool = True,
     perm_state: PermissionState | None = None,
+    usage_tracker: Any = None,
 ) -> None:
     """Run the interactive REPL loop.
 
     Parameters
     ----------
-    orx_path : Path
-        Path to the generated ``orx.yaml`` file.
+    runtime_ctx : RuntimeContext
+        Mutable runtime context for the current REPL session.
     state : Any
         REPL state containing the runner and session state.
-    workspace : Path
-        Workspace directory for the session.
     auto_approve : bool, optional
         Whether tool execution should auto-approve prompts.
     perm_state : PermissionState or ``None``, optional
         Mutable permission state displayed in the prompt.
+    usage_tracker : Any, optional
+        Token usage callback preserved across runtime rebuilds.
 
     Returns
     -------
@@ -849,16 +1135,16 @@ async def _repl(
         print("Error: rich is required. Install with: pip install orxhestra[cli]")
         sys.exit(1)
 
-    from orxhestra.cli.commands import handle_slash_command
-    from orxhestra.cli.render import print_banner
-    from orxhestra.cli.stream import stream_response
-    from orxhestra.cli.theme import make_console
-
     from orxhestra_code import __version__ as code_version
 
     console = make_console()
 
-    print_banner(orx_path, state.model_name, str(workspace), console)
+    print_banner(
+        runtime_ctx.orx_path,
+        state.model_name,
+        str(runtime_ctx.workspace),
+        console,
+    )
     console.print(
         f"  [orx.status]orx-coder v{code_version} · "
         f"type /help for commands, Ctrl+D to exit[/orx.status]\n"
@@ -867,7 +1153,6 @@ async def _repl(
     prompt_session: Any = None
     ANSI_cls: Any = None
     try:
-        from orxhestra.cli.commands import get_command_names
         from prompt_toolkit import PromptSession
         from prompt_toolkit.completion import WordCompleter
         from prompt_toolkit.formatted_text import ANSI
@@ -948,8 +1233,11 @@ async def _repl(
                 cmd_arg,
                 state,
                 console=console,
-                orx_path=orx_path,
-                workspace=str(workspace),
+                orx_path=runtime_ctx.orx_path,
+                workspace=str(runtime_ctx.workspace),
+                runtime_ctx=runtime_ctx,
+                perm_state=perm_state,
+                usage_tracker=usage_tracker,
             )
             # auto_approve stays True — our before_tool callback handles it.
             if not state.should_continue:

@@ -208,7 +208,7 @@ The `--effort` flag maps to each provider's native reasoning API:
 | `/permissions <mode>` | Switch permission mode |
 | `/perm cycle` | Cycle to next permission mode |
 | `/cost` | Show session token usage |
-| `/diff` | Show uncommitted git changes (`/diff full` for syntax-highlighted diff) |
+| `/diff [scope] [full]` | Show git changes with previews (`/diff staged`, `/diff full`) |
 | `/compact` | Summarize history to free context (also auto-triggers at 80K chars) |
 | `/todos` | Show task list |
 | `/session` | Session info |
