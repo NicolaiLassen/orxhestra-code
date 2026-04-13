@@ -21,9 +21,6 @@ dependencies = [
     "pyyaml>=6.0",
     "aiosqlite>=0.20",
     "sqlalchemy[asyncio]>=2.0",
-    "ddgs>=9.0.0",
-    "httpx>=0.28.0",
-    "trafilatura>=1.12.0",
 ]
 
 [project.optional-dependencies]
@@ -47,7 +44,8 @@ ibm = ["orxhestra[ibm]>=0.0.64"]
 perplexity = ["orxhestra[perplexity]>=0.0.64"]
 openrouter = ["orxhestra[openrouter]>=0.0.64"]
 upstage = ["orxhestra[upstage]>=0.0.64"]
-all = ["orxhestra[all]>=0.0.64"]
+web = ["ddgs>=9.0.0", "httpx>=0.28.0", "trafilatura>=1.12.0"]
+all = ["orxhestra[all]>=0.0.64", "ddgs>=9.0.0", "httpx>=0.28.0", "trafilatura>=1.12.0"]
 
 [project.scripts]
 orx-coder = "orxhestra_code.main:main"

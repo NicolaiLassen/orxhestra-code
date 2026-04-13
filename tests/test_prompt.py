@@ -6,6 +6,7 @@ instruction loading, and web-tool helpers.
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -614,6 +615,14 @@ def test_web_fetch_chunk_selection_prefers_matching_content() -> None:
     assert "Install steps" not in result
 
 
+_has_web_deps = (
+    importlib.util.find_spec("httpx") is not None
+    and importlib.util.find_spec("trafilatura") is not None
+    and importlib.util.find_spec("ddgs") is not None
+)
+
+
+@pytest.mark.skipif(not _has_web_deps, reason="web extras not installed")
 def test_web_fetch_rejects_binary_content(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify binary fetched content is rejected.
 
@@ -705,11 +714,12 @@ def test_web_fetch_rejects_binary_content(monkeypatch: pytest.MonkeyPatch) -> No
             """
             return FakeResponse()
 
-    monkeypatch.setattr(web_tools.httpx, "Client", lambda **kwargs: FakeClient())
+    monkeypatch.setattr("httpx.Client", lambda **kwargs: FakeClient())
     result = web_tools.web_fetch("https://example.com/file.pdf")
     assert "binary or unsupported" in result
 
 
+@pytest.mark.skipif(not _has_web_deps, reason="web extras not installed")
 def test_web_fetch_extracts_relevant_html(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify HTML fetching extracts and filters readable content.
 
@@ -801,10 +811,9 @@ def test_web_fetch_extracts_relevant_html(monkeypatch: pytest.MonkeyPatch) -> No
             """
             return FakeResponse()
 
-    monkeypatch.setattr(web_tools.httpx, "Client", lambda **kwargs: FakeClient())
+    monkeypatch.setattr("httpx.Client", lambda **kwargs: FakeClient())
     monkeypatch.setattr(
-        web_tools.trafilatura,
-        "extract",
+        "trafilatura.extract",
         lambda text, output_format=None: (
             "Install steps.\n\nCaching behavior and cache invalidation."
         ),

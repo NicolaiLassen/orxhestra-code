@@ -10,9 +10,6 @@ import html
 import re
 from urllib.parse import urlparse
 
-import httpx
-import trafilatura
-from ddgs import DDGS
 from langchain_core.tools import StructuredTool
 
 _MAX_FETCH_BYTES = 10_000_000
@@ -238,6 +235,8 @@ def web_search(query: str, max_results: int = 5) -> str:
     if not cleaned_query:
         raise ValueError("Query must not be empty.")
 
+    from ddgs import DDGS
+
     limit = max(1, min(max_results, _MAX_SEARCH_RESULTS))
     results = list(DDGS().text(cleaned_query, max_results=limit))
     return _format_search_results(cleaned_query, results)
@@ -258,6 +257,9 @@ def web_fetch(url: str, prompt: str | None = None) -> str:
     str
         Fetched content summary or an error message.
     """
+    import httpx
+    import trafilatura
+
     last_error: Exception | None = None
     response: httpx.Response | None = None
 
@@ -331,11 +333,20 @@ def web_fetch(url: str, prompt: str | None = None) -> str:
 def make_web_tools() -> list[StructuredTool]:
     """Create the structured web tool definitions.
 
+    Returns an empty list when the optional ``web`` dependencies
+    (``ddgs``, ``httpx``, ``trafilatura``) are not installed.
+
     Returns
     -------
     list[StructuredTool]
-        Structured search and fetch tools.
+        Structured search and fetch tools, or ``[]`` if deps missing.
     """
+    try:
+        import ddgs  # noqa: F401
+        import httpx  # noqa: F401
+        import trafilatura  # noqa: F401
+    except ImportError:
+        return []
     search_tool = StructuredTool.from_function(
         func=web_search,
         name="web_search",

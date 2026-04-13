@@ -3415,21 +3415,21 @@ xai = [
 
 [[package]]
 name = "orxhestra-code"
-version = "0.0.34"
+version = "0.0.35"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
-    { name = "ddgs" },
-    { name = "httpx" },
     { name = "orxhestra", extra = ["cli"] },
     { name = "pyyaml" },
     { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "trafilatura" },
 ]
 
 [package.optional-dependencies]
 all = [
+    { name = "ddgs" },
+    { name = "httpx" },
     { name = "orxhestra", extra = ["all"] },
+    { name = "trafilatura" },
 ]
 anthropic = [
     { name = "orxhestra", extra = ["anthropic"] },
@@ -3488,6 +3488,11 @@ together = [
 upstage = [
     { name = "orxhestra", extra = ["upstage"] },
 ]
+web = [
+    { name = "ddgs" },
+    { name = "httpx" },
+    { name = "trafilatura" },
+]
 xai = [
     { name = "orxhestra", extra = ["xai"] },
 ]
@@ -3502,8 +3507,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20" },
-    { name = "ddgs", specifier = ">=9.0.0" },
-    { name = "httpx", specifier = ">=0.28.0" },
+    { name = "ddgs", marker = "extra == 'all'", specifier = ">=9.0.0" },
+    { name = "ddgs", marker = "extra == 'web'", specifier = ">=9.0.0" },
+    { name = "httpx", marker = "extra == 'all'", specifier = ">=0.28.0" },
+    { name = "httpx", marker = "extra == 'web'", specifier = ">=0.28.0" },
     { name = "orxhestra", extras = ["all"], marker = "extra == 'all'", specifier = ">=0.0.64" },
     { name = "orxhestra", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=0.0.64" },
     { name = "orxhestra", extras = ["aws"], marker = "extra == 'aws'", specifier = ">=0.0.64" },
@@ -3528,7 +3535,8 @@ requires-dist = [
     { name = "orxhestra", extras = ["xai"], marker = "extra == 'xai'", specifier = ">=0.0.64" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
-    { name = "trafilatura", specifier = ">=1.12.0" },
+    { name = "trafilatura", marker = "extra == 'all'", specifier = ">=1.12.0" },
+    { name = "trafilatura", marker = "extra == 'web'", specifier = ">=1.12.0" },
 ]
 
 [package.metadata.requires-dev]
