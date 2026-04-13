@@ -28,15 +28,6 @@ _NETWORK_TOOLS: frozenset[str] = frozenset({
 })
 
 # Read-only tools that are always safe.
-_READ_TOOLS: frozenset[str] = frozenset({
-    "ls",
-    "read_file",
-    "glob",
-    "grep",
-    "list_artifacts",
-    "load_artifact",
-})
-
 # All valid permission mode names.
 PERMISSION_MODES: tuple[str, ...] = (
     "default",
