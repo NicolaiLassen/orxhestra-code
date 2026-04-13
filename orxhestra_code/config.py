@@ -1,6 +1,7 @@
 """Configuration loading with layered precedence.
 
-CLI args > environment variables > config file > defaults.
+Resolves coding-agent settings from CLI arguments, environment variables,
+a config file, and built-in defaults.
 """
 
 from __future__ import annotations
@@ -41,18 +42,19 @@ _ANTHROPIC_THINKING_BUDGET: dict[str, int | None] = {
 
 
 def effort_model_kwargs(provider: str, effort: str) -> dict[str, Any]:
-    """Return provider-specific model kwargs for the given effort level.
-
-    Maps the unified ``--effort`` flag to provider-specific LLM constructor
-    kwargs.  These get forwarded to the LangChain model via orxhestra's
-    ``ModelConfig(extra="allow")`` mechanism.
+    """Return provider-specific model kwargs for a reasoning effort level.
 
     Parameters
     ----------
     provider : str
-        LLM provider name (e.g. ``"openai"``, ``"anthropic"``).
+        LLM provider name.
     effort : str
-        One of ``"low"``, ``"medium"``, ``"high"``.
+        Unified effort level such as ``"low"``, ``"medium"``, or ``"high"``.
+
+    Returns
+    -------
+    dict[str, Any]
+        Provider-specific model keyword arguments.
     """
     # Anthropic / AWS Bedrock — extended thinking with budget_tokens.
     if provider in ("anthropic", "aws"):
@@ -102,21 +104,22 @@ class CoderConfig:
 
     Attributes
     ----------
-    model : str
-        Provider/model string (e.g. ``"anthropic/claude-sonnet-4-6"``).
-    effort : str
-        One of ``"low"``, ``"medium"``, ``"high"``.
-    max_tokens : int
-        Maximum tokens per LLM response.
-    max_iterations : int
-        Maximum tool-call loop iterations (derived from effort).
-    permission_mode : str
-        One of ``"default"``, ``"plan"``, ``"accept-edits"``,
-        ``"auto-approve"``, ``"trust"``.
-    workspace : Path
-        Project root directory.
-    auto_approve_reads : bool
-        Skip approval prompts for read-only tools.
+    model : str, optional
+        Provider and model identifier.
+    effort : str, optional
+        Effort level for the selected model.
+    max_tokens : int, optional
+        Maximum tokens per model response.
+    max_iterations : int, optional
+        Maximum tool-call loop iterations per turn.
+    permission_mode : str, optional
+        Active permission mode for tool execution.
+    resume_session : str or ``None``, optional
+        Session ID to resume, or ``"latest"`` for the most recent session.
+    workspace : Path, optional
+        Workspace directory used by the agent.
+    auto_approve_reads : bool, optional
+        Whether read-only tools skip approval prompts.
     """
 
     model: str = "anthropic/claude-sonnet-4-6"
@@ -130,17 +133,23 @@ class CoderConfig:
 
     @property
     def provider(self) -> str:
-        """Extract the provider name from the model string."""
+        """Provider name extracted from ``model``."""
         return self.model.split("/")[0] if "/" in self.model else "anthropic"
 
     @property
     def model_name(self) -> str:
-        """Extract the model name from the model string."""
+        """Model name extracted from ``model``."""
         return self.model.split("/", 1)[1] if "/" in self.model else self.model
 
 
 def _load_yaml_config() -> dict[str, Any]:
-    """Load config from ``~/.orx-coder/config.yaml`` if it exists."""
+    """Load the user config file when it exists.
+
+    Returns
+    -------
+    dict[str, Any]
+        Parsed config values, or an empty mapping on failure.
+    """
     if not _CONFIG_FILE.exists():
         return {}
     try:
@@ -152,7 +161,18 @@ def _load_yaml_config() -> dict[str, Any]:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse CLI arguments."""
+    """Parse command-line arguments.
+
+    Parameters
+    ----------
+    argv : list[str] or ``None``, optional
+        CLI arguments to parse.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed CLI arguments.
+    """
     parser = argparse.ArgumentParser(
         prog="orx-coder",
         description="AI coding agent powered by orxhestra",
@@ -207,17 +227,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def load_config(argv: list[str] | None = None) -> CoderConfig:
-    """Build a ``CoderConfig`` from CLI args, env vars, config file, and defaults.
+    """Build the resolved coding-agent configuration.
 
     Parameters
     ----------
-    argv : list[str], optional
-        CLI arguments.  Defaults to ``sys.argv[1:]``.
+    argv : list[str] or ``None``, optional
+        CLI arguments to parse.
 
     Returns
     -------
     CoderConfig
-        The resolved configuration.
+        Resolved configuration values.
     """
     args = parse_args(argv)
     yaml_cfg = _load_yaml_config()

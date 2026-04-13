@@ -1,10 +1,7 @@
-"""EnterPlanMode / ExitPlanMode tools for plan-then-execute workflow.
+"""Plan-mode tools for the plan-then-execute workflow.
 
-The agent calls ``enter_plan_mode`` when it decides a task is non-trivial.
-This switches permissions to read-only so the agent can explore the
-codebase and design a plan.  When ready, it calls ``exit_plan_mode``
-with the plan text.  The user is prompted to approve, reject, or edit
-the plan before the agent proceeds to implement.
+Provides structured tools that switch the agent into read-only planning
+mode and later present the resulting implementation plan for approval.
 """
 
 from __future__ import annotations
@@ -20,30 +17,27 @@ if TYPE_CHECKING:
 def make_plan_mode_tools(
     perm_state: PermissionState,
 ) -> list[StructuredTool]:
-    """Create the enter/exit plan mode tool pair.
+    """Create the plan-mode tool pair.
 
     Parameters
     ----------
     perm_state : PermissionState
-        Mutable permission state shared with the before_tool callback.
+        Mutable permission state shared with the tool callback.
 
     Returns
     -------
     list[StructuredTool]
-        Two tools: ``enter_plan_mode`` and ``exit_plan_mode``.
+        Structured enter-plan and exit-plan tools.
     """
     _previous_mode: dict[str, str] = {}
 
     def enter_plan_mode() -> str:
-        """Enter plan mode for read-only codebase exploration.
+        """Switch the agent into read-only plan mode.
 
-        Call this BEFORE starting any non-trivial implementation task.
-        In plan mode you can read files, search, and analyze, but you
-        cannot write, edit, or run shell commands.  Use this to explore
-        the codebase and design your approach before writing code.
-
-        After exploring, call exit_plan_mode with your implementation
-        plan to get user approval before proceeding.
+        Returns
+        -------
+        str
+            Status message describing the activated mode.
         """
         # Save the mode to restore after plan approval.
         # If already in plan mode, restore to default (not plan again).
@@ -58,16 +52,17 @@ def make_plan_mode_tools(
         )
 
     def exit_plan_mode(plan: str) -> str:
-        """Exit plan mode and present the implementation plan for user approval.
+        """Present a plan and restore the previous mode when approved.
 
         Parameters
         ----------
         plan : str
-            Your implementation plan in markdown format.  Include:
-            - What files you'll create or modify
-            - Key changes in each file
-            - Testing approach
-            - Any risks or concerns
+            Proposed implementation plan in markdown.
+
+        Returns
+        -------
+        str
+            Approval result and next-step guidance.
         """
         from rich.console import Console
         from rich.markdown import Markdown as RichMarkdown

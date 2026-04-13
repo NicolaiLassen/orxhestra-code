@@ -1,3 +1,9 @@
+"""Web search and fetch tools for the coding agent.
+
+Provides helpers for open-web search, URL validation, content extraction,
+and lightweight relevance ranking for fetched pages.
+"""
+
 from __future__ import annotations
 
 import html
@@ -21,6 +27,18 @@ _USER_AGENT = "orx-coder/0.0"
 
 
 def _candidate_urls(url: str) -> list[str]:
+    """Build candidate URLs for a user-provided URL string.
+
+    Parameters
+    ----------
+    url : str
+        URL text supplied by the caller.
+
+    Returns
+    -------
+    list[str]
+        Candidate URLs to try in order, preferring ``https``.
+    """
     raw = url.strip()
     if not raw:
         raise ValueError("URL must not be empty.")
@@ -39,6 +57,18 @@ def _candidate_urls(url: str) -> list[str]:
 
 
 def _is_text_content_type(content_type: str) -> bool:
+    """Check whether a content type is likely text-based.
+
+    Parameters
+    ----------
+    content_type : str
+        Response content type header value.
+
+    Returns
+    -------
+    bool
+        ``True`` when the content type is treated as text.
+    """
     lowered = content_type.lower()
     if not lowered:
         return True
@@ -52,6 +82,18 @@ def _is_text_content_type(content_type: str) -> bool:
 
 
 def _extract_title(content: str) -> str | None:
+    """Extract the HTML ``<title>`` text from page content.
+
+    Parameters
+    ----------
+    content : str
+        HTML source text.
+
+    Returns
+    -------
+    str or ``None``
+        Extracted title text when present.
+    """
     match = re.search(r"<title[^>]*>(.*?)</title>", content, flags=re.IGNORECASE | re.DOTALL)
     if not match:
         return None
@@ -61,12 +103,38 @@ def _extract_title(content: str) -> str | None:
 
 
 def _trim_output(text: str, limit: int = _MAX_OUTPUT_CHARS) -> tuple[str, bool]:
+    """Trim output text to the configured size limit.
+
+    Parameters
+    ----------
+    text : str
+        Text to trim.
+    limit : int, optional
+        Maximum number of characters to keep.
+
+    Returns
+    -------
+    tuple[str, bool]
+        Trimmed text and whether truncation occurred.
+    """
     if len(text) <= limit:
         return text, False
     return text[:limit].rstrip(), True
 
 
 def _keyword_tokens(text: str) -> list[str]:
+    """Extract distinct keyword tokens from free-form text.
+
+    Parameters
+    ----------
+    text : str
+        Source text to tokenize.
+
+    Returns
+    -------
+    list[str]
+        Deduplicated keyword tokens with stop words removed.
+    """
     tokens = []
     seen: set[str] = set()
     for token in re.findall(r"[A-Za-z0-9_]{3,}", text.lower()):
@@ -78,6 +146,22 @@ def _keyword_tokens(text: str) -> list[str]:
 
 
 def _select_relevant_chunks(markdown: str, prompt: str | None, limit: int = 5) -> str:
+    """Select the most relevant markdown chunks for a prompt.
+
+    Parameters
+    ----------
+    markdown : str
+        Extracted markdown content.
+    prompt : str or ``None``, optional
+        Prompt used to rank relevant chunks.
+    limit : int, optional
+        Maximum number of chunks to return.
+
+    Returns
+    -------
+    str
+        Relevant content excerpt.
+    """
     chunks = [chunk.strip() for chunk in re.split(r"\n\s*\n", markdown) if chunk.strip()]
     if not chunks:
         return ""
@@ -104,6 +188,20 @@ def _select_relevant_chunks(markdown: str, prompt: str | None, limit: int = 5) -
 
 
 def _format_search_results(query: str, results: list[dict[str, str]]) -> str:
+    """Format raw web search results for display.
+
+    Parameters
+    ----------
+    query : str
+        Search query text.
+    results : list[dict[str, str]]
+        Raw search results from the provider.
+
+    Returns
+    -------
+    str
+        Human-readable search results.
+    """
     if not results:
         return f'No web results found for "{query}".'
 
@@ -122,6 +220,20 @@ def _format_search_results(query: str, results: list[dict[str, str]]) -> str:
 
 
 def web_search(query: str, max_results: int = 5) -> str:
+    """Search the open web and format the results.
+
+    Parameters
+    ----------
+    query : str
+        Search query text.
+    max_results : int, optional
+        Maximum number of results to return.
+
+    Returns
+    -------
+    str
+        Formatted search results.
+    """
     cleaned_query = query.strip()
     if not cleaned_query:
         raise ValueError("Query must not be empty.")
@@ -132,6 +244,20 @@ def web_search(query: str, max_results: int = 5) -> str:
 
 
 def web_fetch(url: str, prompt: str | None = None) -> str:
+    """Fetch a URL and extract readable text content.
+
+    Parameters
+    ----------
+    url : str
+        URL to fetch.
+    prompt : str or ``None``, optional
+        Prompt used to rank the most relevant extracted content.
+
+    Returns
+    -------
+    str
+        Fetched content summary or an error message.
+    """
     last_error: Exception | None = None
     response: httpx.Response | None = None
 
@@ -203,6 +329,13 @@ def web_fetch(url: str, prompt: str | None = None) -> str:
 
 
 def make_web_tools() -> list[StructuredTool]:
+    """Create the structured web tool definitions.
+
+    Returns
+    -------
+    list[StructuredTool]
+        Structured search and fetch tools.
+    """
     search_tool = StructuredTool.from_function(
         func=web_search,
         name="web_search",

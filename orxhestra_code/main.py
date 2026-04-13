@@ -1,7 +1,7 @@
 """CLI entry point for orx-coder.
 
-Builds a coding-focused LlmAgent with filesystem, shell, memory,
-and todo tools, then launches the orxhestra interactive REPL.
+Builds the coding-focused agent configuration, injects runtime tools and
+callbacks, and starts the interactive or single-shot CLI flow.
 """
 
 from __future__ import annotations
@@ -41,7 +41,18 @@ _PROVIDER_ENV_VARS: dict[str, str] = {
 
 
 def _check_api_key(cfg: CoderConfig) -> None:
-    """Check if the required API key is set for the configured provider."""
+    """Exit when the configured provider is missing its API key.
+
+    Parameters
+    ----------
+    cfg : CoderConfig
+        Resolved runtime configuration.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+    """
     env_var = _PROVIDER_ENV_VARS.get(cfg.provider)
     if env_var and not os.environ.get(env_var):
         # Don't fail for local providers.
@@ -53,10 +64,17 @@ def _check_api_key(cfg: CoderConfig) -> None:
 
 
 def _build_permission_section(mode: str) -> str:
-    """Build the permission mode section for the system prompt.
+    """Build the permission section for the system prompt.
 
-    This tells the LLM what it can and cannot do under the current
-    permission mode, so it doesn't attempt denied operations.
+    Parameters
+    ----------
+    mode : str
+        Active permission mode.
+
+    Returns
+    -------
+    str
+        Prompt section describing tool restrictions for the mode.
     """
     sections: dict[str, str] = {
         "default": """\
@@ -94,7 +112,7 @@ different permission mode when ready to implement.""",
 File operations (write, edit, mkdir) are **auto-approved** — you can \
 freely create and modify files without prompting. Shell commands and web \
 tools still require user approval. Read-only local tools are auto-approved. \
-Use this mode for focused coding tasks where file changes are expected.""", 
+Use this mode for focused coding tasks where file changes are expected.""",
 
         "auto-approve": """\
 # Permission mode: auto-approve
@@ -102,7 +120,7 @@ Use this mode for focused coding tasks where file changes are expected.""",
 All tool calls are **auto-approved** — no prompts will be shown. You can \
 freely read, write, edit files, use web tools, and run shell commands. \
 Exercise extra caution with destructive operations since the user will not \
-be prompted to confirm. Prefer safe, reversible actions.""", 
+be prompted to confirm. Prefer safe, reversible actions.""",
 
         "trust": """\
 # Permission mode: trust
@@ -110,13 +128,26 @@ be prompted to confirm. Prefer safe, reversible actions.""",
 All tool calls are **auto-approved** with no warnings. Full autonomous \
 operation. Exercise maximum caution with destructive operations — there \
 is no safety net. Only use destructive git operations, web actions, or \
-file deletions when you are absolutely certain they are correct.""", 
+file deletions when you are absolutely certain they are correct.""",
     }
     return sections.get(mode, sections["default"])
 
 
 def _build_env_section(cfg: CoderConfig, workspace: Path) -> str:
-    """Build a dynamic environment info section (mirrors Claude Code's computeSimpleEnvInfo)."""
+    """Build the dynamic environment section for the system prompt.
+
+    Parameters
+    ----------
+    cfg : CoderConfig
+        Resolved runtime configuration.
+    workspace : Path
+        Workspace directory for the current run.
+
+    Returns
+    -------
+    str
+        Prompt section describing the local runtime environment.
+    """
     import platform
     import shutil
     import subprocess
@@ -156,14 +187,14 @@ def _build_env_section(cfg: CoderConfig, workspace: Path) -> str:
 
 
 def _build_orx_yaml(cfg: CoderConfig, workspace: Path) -> Path:
-    """Generate a temporary orx.yaml for the coding agent.
+    """Generate the temporary ``orx.yaml`` file for a session.
 
     Parameters
     ----------
     cfg : CoderConfig
-        Resolved configuration.
+        Resolved runtime configuration.
     workspace : Path
-        The project workspace directory.
+        Workspace directory for the session.
 
     Returns
     -------
@@ -251,10 +282,37 @@ runner:
 
 
 def _register_permission_commands(perm_state: PermissionState) -> None:
-    """Register /permissions, /perm, /mode slash commands via orxhestra's API."""
+    """Register the permission-related slash commands.
+
+    Parameters
+    ----------
+    perm_state : PermissionState
+        Mutable permission state shared with the REPL.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+    """
     from orxhestra.cli.commands import register_command
 
     async def _cmd_permissions(state: Any, cmd_arg: str | None, **kw: Any) -> None:
+        """Handle permission-mode slash commands.
+
+        Parameters
+        ----------
+        state : Any
+            REPL command state.
+        cmd_arg : str or ``None``, optional
+            Optional command argument.
+        **kw : Any
+            Additional command context.
+
+        Returns
+        -------
+        None
+            This command does not return a value.
+        """
         console = kw.get("console")
         if not console:
             return
@@ -291,7 +349,13 @@ def _register_permission_commands(perm_state: PermissionState) -> None:
 
 
 def _register_extra_commands() -> None:
-    """Register /cost and /diff commands."""
+    """Register auxiliary slash commands.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+    """
     from orxhestra.cli.commands import register_command
 
     # Cumulative session token tracking.
@@ -302,7 +366,20 @@ def _register_extra_commands() -> None:
     }
 
     def track_usage(prompt_tokens: int, completion_tokens: int) -> None:
-        """Called after each turn to accumulate usage."""
+        """Accumulate token usage for the current session.
+
+        Parameters
+        ----------
+        prompt_tokens : int
+            Tokens consumed by the prompt.
+        completion_tokens : int
+            Tokens generated by the model.
+
+        Returns
+        -------
+        None
+            This function does not return a value.
+        """
         _session_usage["prompt_tokens"] += prompt_tokens
         _session_usage["completion_tokens"] += completion_tokens
         _session_usage["turns"] += 1
@@ -311,6 +388,22 @@ def _register_extra_commands() -> None:
     _register_extra_commands.track_usage = track_usage  # type: ignore[attr-defined]
 
     async def _cmd_cost(state: Any, cmd_arg: str | None, **kw: Any) -> None:
+        """Show cumulative token usage for the session.
+
+        Parameters
+        ----------
+        state : Any
+            REPL command state.
+        cmd_arg : str or ``None``, optional
+            Optional command argument.
+        **kw : Any
+            Additional command context.
+
+        Returns
+        -------
+        None
+            This command does not return a value.
+        """
         console = kw.get("console")
         if not console:
             return
@@ -327,6 +420,22 @@ def _register_extra_commands() -> None:
     register_command("/usage", _cmd_cost)
 
     async def _cmd_diff(state: Any, cmd_arg: str | None, **kw: Any) -> None:
+        """Show the current git diff summary or full diff.
+
+        Parameters
+        ----------
+        state : Any
+            REPL command state.
+        cmd_arg : str or ``None``, optional
+            Optional command argument.
+        **kw : Any
+            Additional command context.
+
+        Returns
+        -------
+        None
+            This command does not return a value.
+        """
         console = kw.get("console")
         if not console:
             return
@@ -365,6 +474,22 @@ def _register_extra_commands() -> None:
     register_command("/diff", _cmd_diff)
 
     async def _cmd_help(state: Any, cmd_arg: str | None, **kw: Any) -> None:
+        """Display available slash commands and input tips.
+
+        Parameters
+        ----------
+        state : Any
+            REPL command state.
+        cmd_arg : str or ``None``, optional
+            Optional command argument.
+        **kw : Any
+            Additional command context.
+
+        Returns
+        -------
+        None
+            This command does not return a value.
+        """
         console = kw.get("console")
         if not console:
             return
@@ -388,12 +513,28 @@ def _register_extra_commands() -> None:
   /exit               Exit
 
 [orx.status]Multi-line input:[/orx.status]
-  Start with \\"\\"\\" or \\'\\'\\' and end with same.
+  Start with \"\"\" or \'\'\' and end with same.
 """)
 
     register_command("/help", _cmd_help)
 
     async def _cmd_effort(state: Any, cmd_arg: str | None, **kw: Any) -> None:
+        """Show or update the max-iteration setting.
+
+        Parameters
+        ----------
+        state : Any
+            REPL command state.
+        cmd_arg : str or ``None``, optional
+            Optional command argument.
+        **kw : Any
+            Additional command context.
+
+        Returns
+        -------
+        None
+            This command does not return a value.
+        """
         console = kw.get("console")
         if not console:
             return
@@ -423,7 +564,22 @@ def _register_extra_commands() -> None:
 def _inject_permission_callback(
     agent: Any, perm_state: PermissionState, usage_tracker: Any = None,
 ) -> None:
-    """Walk the agent tree and inject callbacks for permissions and usage tracking."""
+    """Inject permission and usage callbacks into an agent tree.
+
+    Parameters
+    ----------
+    agent : Any
+        Root agent to update.
+    perm_state : PermissionState
+        Mutable permission state shared with callbacks.
+    usage_tracker : Any, optional
+        Callable used to record token usage.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+    """
     from orxhestra_code.permissions import _DESTRUCTIVE_TOOLS, _NETWORK_TOOLS
 
     callback = make_before_tool_callback(perm_state)
@@ -432,6 +588,20 @@ def _inject_permission_callback(
         # Wire up usage tracking via after_model callback.
         if usage_tracker is not None:
             async def _after_model(ctx: Any, response: Any) -> None:
+                """Record model token usage after a response.
+
+                Parameters
+                ----------
+                ctx : Any
+                    Callback context from the runtime.
+                response : Any
+                    Model response object.
+
+                Returns
+                -------
+                None
+                    This callback does not return a value.
+                """
                 input_t = getattr(response, "input_tokens", 0) or 0
                 output_t = getattr(response, "output_tokens", 0) or 0
                 if input_t or output_t:
@@ -448,10 +618,19 @@ def _inject_permission_callback(
 
 
 async def _resolve_session_id(state: Any, resume_arg: str) -> str | None:
-    """Resolve a session ID from a resume argument.
+    """Resolve a concrete session ID from a resume argument.
 
-    If ``resume_arg`` is ``"latest"``, finds the most recent session
-    from the session service.  Otherwise treats it as a literal session ID.
+    Parameters
+    ----------
+    state : Any
+        REPL state containing the session service.
+    resume_arg : str
+        Requested resume target, including ``"latest"``.
+
+    Returns
+    -------
+    str or ``None``
+        Resolved session ID when one is available.
     """
     if resume_arg != "latest":
         return resume_arg
@@ -468,27 +647,70 @@ async def _resolve_session_id(state: Any, resume_arg: str) -> str | None:
 
 
 def _inject_plan_tools(agent: Any, perm_state: PermissionState) -> None:
-    """Add enter/exit plan mode tools to the root agent."""
+    """Add the plan-mode tools to the root agent.
+
+    Parameters
+    ----------
+    agent : Any
+        Agent to update.
+    perm_state : PermissionState
+        Mutable permission state shared with the plan tools.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+    """
     if hasattr(agent, "_tools"):
         for tool in make_plan_mode_tools(perm_state):
             agent._tools[tool.name] = tool
 
 
 def _inject_web_tools(agent: Any) -> None:
-    """Add web search and fetch tools to the root agent."""
+    """Add the web tools to the root agent.
+
+    Parameters
+    ----------
+    agent : Any
+        Agent to update.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+    """
     if hasattr(agent, "_tools"):
         for tool in make_web_tools():
             agent._tools[tool.name] = tool
 
 
 def _indent(text: str, spaces: int) -> str:
-    """Indent every line of *text* by *spaces* spaces."""
+    """Indent each line of text by a fixed number of spaces.
+
+    Parameters
+    ----------
+    text : str
+        Text to indent.
+    spaces : int
+        Number of leading spaces to add to each line.
+
+    Returns
+    -------
+    str
+        Indented text.
+    """
     prefix: str = " " * spaces
     return "\n".join(prefix + line for line in text.splitlines())
 
 
 async def _async_main() -> None:
-    """Async entry point."""
+    """Run the asynchronous CLI entry flow.
+
+    Returns
+    -------
+    None
+        This coroutine does not return a value.
+    """
     cfg: CoderConfig = load_config()
 
     logging.basicConfig(level=logging.WARNING)
@@ -550,7 +772,24 @@ async def _async_main() -> None:
 async def _run_single(
     state: Any, command: str, workspace: Path, auto_approve: bool = False,
 ) -> None:
-    """Run a single command and exit."""
+    """Run a single command and exit.
+
+    Parameters
+    ----------
+    state : Any
+        REPL state containing the runner.
+    command : str
+        Command text to execute.
+    workspace : Path
+        Workspace directory for the session.
+    auto_approve : bool, optional
+        Whether tool execution should auto-approve prompts.
+
+    Returns
+    -------
+    None
+        This coroutine does not return a value.
+    """
     try:
         from rich.markdown import Markdown
     except ImportError:
@@ -579,7 +818,26 @@ async def _repl(
     auto_approve: bool = True,
     perm_state: PermissionState | None = None,
 ) -> None:
-    """Run the interactive REPL."""
+    """Run the interactive REPL loop.
+
+    Parameters
+    ----------
+    orx_path : Path
+        Path to the generated ``orx.yaml`` file.
+    state : Any
+        REPL state containing the runner and session state.
+    workspace : Path
+        Workspace directory for the session.
+    auto_approve : bool, optional
+        Whether tool execution should auto-approve prompts.
+    perm_state : PermissionState or ``None``, optional
+        Mutable permission state displayed in the prompt.
+
+    Returns
+    -------
+    None
+        This coroutine does not return a value.
+    """
     try:
         from rich.markdown import Markdown
     except ImportError:
@@ -624,7 +882,13 @@ async def _repl(
         pass
 
     def _make_prompt() -> Any:
-        """Build the prompt string with the current permission mode."""
+        """Build the interactive prompt string.
+
+        Returns
+        -------
+        Any
+            Prompt text or formatted prompt object.
+        """
         mode = perm_state.mode if perm_state else "default"
         mode_tag = "" if mode == "default" else f" ({mode})"
         if ANSI_cls:
@@ -705,7 +969,13 @@ async def _repl(
 
 
 def main() -> None:
-    """Entry point for the ``orx-coder`` command."""
+    """Run the top-level CLI entry point.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+    """
     try:
         asyncio.run(_async_main())
     except KeyboardInterrupt:

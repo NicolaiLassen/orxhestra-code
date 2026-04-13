@@ -1,13 +1,8 @@
-"""Load project instructions from CLAUDE.md files.
+"""Load project instructions from ``CLAUDE.md`` files.
 
-Walks from the workspace directory up to the filesystem root,
-collecting any ``CLAUDE.md``, ``CLAUDE.local.md``, or
-``.orx/instructions.md`` files.  Also loads user-level instructions
-from ``~/.claude/CLAUDE.md`` and ``~/.orx-coder/CLAUDE.md``.
-
-Supports ``@path/to/file`` import directives for composing
-instructions from multiple files (max 5 hops to prevent cycles).
-Truncates oversized files with a warning.
+Walks from the workspace directory up to the filesystem root, collecting
+project and user instruction files, resolving ``@path`` imports, and
+truncating oversized content.
 """
 
 from __future__ import annotations
@@ -44,12 +39,23 @@ def _resolve_imports(
     visited: set[Path],
     depth: int = 0,
 ) -> str:
-    """Resolve ``@path/to/file`` import directives in *content*.
+    """Resolve ``@path/to/file`` directives within instruction content.
 
-    Lines that start with ``@`` followed by a relative path are
-    replaced with the contents of the referenced file.  Imports
-    are resolved relative to *base_dir*.  Circular references and
-    depth limits are enforced.
+    Parameters
+    ----------
+    content : str
+        Instruction file content to process.
+    base_dir : Path
+        Base directory used to resolve relative import paths.
+    visited : set[Path]
+        Already visited files used to avoid cycles.
+    depth : int, optional
+        Current import depth.
+
+    Returns
+    -------
+    str
+        Content with supported imports expanded.
     """
     if depth >= _MAX_IMPORT_DEPTH:
         return content
@@ -82,7 +88,18 @@ def _resolve_imports(
 
 
 def _strip_html_comments(text: str) -> str:
-    """Remove HTML comments to save tokens."""
+    """Remove HTML comments from instruction content.
+
+    Parameters
+    ----------
+    text : str
+        Instruction text to clean.
+
+    Returns
+    -------
+    str
+        Text with HTML comments removed.
+    """
     return re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
 
 
@@ -90,10 +107,19 @@ def _read_instruction_file(
     path: Path,
     visited_imports: set[Path],
 ) -> str | None:
-    """Read and process a single instruction file.
+    """Read and preprocess one instruction file.
 
-    Returns the processed content, or ``None`` if the file doesn't
-    exist, is empty, or can't be read.
+    Parameters
+    ----------
+    path : Path
+        Instruction file path.
+    visited_imports : set[Path]
+        Visited import targets used to avoid cycles.
+
+    Returns
+    -------
+    str or ``None``
+        Processed instruction content, if available.
     """
     if not path.is_file():
         return None
@@ -121,27 +147,17 @@ def _read_instruction_file(
 
 
 def load_project_instructions(workspace: Path) -> str:
-    """Collect project instruction files from *workspace* up to root.
-
-    Loads instructions from three scopes in priority order:
-
-    1. **Project** — ``CLAUDE.md``, ``CLAUDE.local.md``,
-       ``.orx/instructions.md``, ``.orx/CLAUDE.md``,
-       ``.claude/CLAUDE.md`` walking from *workspace* up to ``/``.
-       Closest files (deepest in the tree) appear first.
-
-    2. **User** — ``~/.claude/CLAUDE.md`` and
-       ``~/.orx-coder/CLAUDE.md``.  Loaded last (lowest priority).
+    """Collect instruction text for a workspace.
 
     Parameters
     ----------
     workspace : Path
-        The project root directory to start searching from.
+        Workspace directory to search from.
 
     Returns
     -------
     str
-        Concatenated instructions.  Empty string if none found.
+        Concatenated instruction text.
     """
     sections: list[str] = []
     visited_dirs: set[Path] = set()
