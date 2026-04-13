@@ -14,12 +14,12 @@ from typing import Any
 _CONFIG_DIR = Path.home() / ".orx-coder"
 _CONFIG_FILE = _CONFIG_DIR / "config.yaml"
 
-# Max iterations per effort level.  Claude Code has NO iteration limit
-# in interactive mode — the agent runs until done.  We use high limits
-# that effectively match this while preventing runaway loops in piped mode.
+# Claude Code has NO iteration limit in interactive mode — the agent
+# runs until done.  We use 200 for all effort levels (effectively
+# unlimited — context window auto-compacts long before this).
 EFFORT_PRESETS: dict[str, dict[str, int]] = {
-    "low": {"max_iterations": 50},
-    "medium": {"max_iterations": 100},
+    "low": {"max_iterations": 200},
+    "medium": {"max_iterations": 200},
     "high": {"max_iterations": 200},
 }
 

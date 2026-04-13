@@ -44,7 +44,7 @@ def test_config_model_override() -> None:
 
 def test_config_effort_presets() -> None:
     low = load_config(["--effort", "low"])
-    assert low.max_iterations == 50
+    assert low.max_iterations == 200
 
     high = load_config(["--effort", "high"])
     assert high.max_iterations == 200
