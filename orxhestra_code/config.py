@@ -14,14 +14,11 @@ from typing import Any
 _CONFIG_DIR = Path.home() / ".orx-coder"
 _CONFIG_FILE = _CONFIG_DIR / "config.yaml"
 
-# Claude Code has NO iteration limit in interactive mode — the agent
-# runs until done.  We use 200 for all effort levels (effectively
-# unlimited — context window auto-compacts long before this).
-EFFORT_PRESETS: dict[str, dict[str, int]] = {
-    "low": {"max_iterations": 200},
-    "medium": {"max_iterations": 200},
-    "high": {"max_iterations": 200},
-}
+# Default max tool-call iterations per turn.  Claude Code has no limit
+# in interactive mode.  200 is effectively unlimited — context window
+# auto-compacts long before this.  Configurable via --max-iterations,
+# config file, or ORX_MAX_ITERATIONS env var.
+DEFAULT_MAX_ITERATIONS: int = 200
 
 # Provider-specific model kwargs for LLM-level reasoning effort.
 #
@@ -175,6 +172,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Maximum tokens per LLM response",
     )
     parser.add_argument(
+        "--max-iterations",
+        type=int,
+        help="Maximum tool-call iterations per turn (default: 200)",
+    )
+    parser.add_argument(
         "--workspace", "-w",
         type=Path,
         help="Project root directory (default: cwd)",
@@ -228,6 +230,8 @@ def load_config(argv: list[str] | None = None) -> CoderConfig:
         cfg.effort = yaml_cfg["effort"]
     if "max_tokens" in yaml_cfg:
         cfg.max_tokens = yaml_cfg["max_tokens"]
+    if "max_iterations" in yaml_cfg:
+        cfg.max_iterations = yaml_cfg["max_iterations"]
     if "workspace" in yaml_cfg:
         cfg.workspace = Path(yaml_cfg["workspace"])
     if "auto_approve_reads" in yaml_cfg:
@@ -261,8 +265,13 @@ def load_config(argv: list[str] | None = None) -> CoderConfig:
     if env_perm := os.environ.get("ORX_PERMISSION_MODE"):
         cfg.permission_mode = env_perm
 
-    # Apply effort presets
-    preset = EFFORT_PRESETS.get(cfg.effort, EFFORT_PRESETS["high"])
-    cfg.max_iterations = preset["max_iterations"]
+    # Max iterations — configurable, not tied to effort.
+    if env_iter := os.environ.get("ORX_MAX_ITERATIONS"):
+        try:
+            cfg.max_iterations = int(env_iter)
+        except ValueError:
+            pass
+    if getattr(args, "max_iterations", None):
+        cfg.max_iterations = args.max_iterations
 
     return cfg
