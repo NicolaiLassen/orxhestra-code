@@ -45,7 +45,10 @@ def make_plan_mode_tools(
         After exploring, call exit_plan_mode with your implementation
         plan to get user approval before proceeding.
         """
-        _previous_mode["saved"] = perm_state.mode
+        # Save the mode to restore after plan approval.
+        # If already in plan mode, restore to default (not plan again).
+        saved = perm_state.mode
+        _previous_mode["saved"] = "default" if saved == "plan" else saved
         perm_state.mode = "plan"
         return (
             "Plan mode activated. You are now in READ-ONLY mode.\n"
