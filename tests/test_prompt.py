@@ -31,7 +31,7 @@ def test_default_config() -> None:
     cfg = load_config([])
     assert cfg.model == "anthropic/claude-sonnet-4-6"
     assert cfg.effort == "high"
-    assert cfg.max_iterations == 30
+    assert cfg.max_iterations == 200
     assert cfg.provider == "anthropic"
     assert cfg.model_name == "claude-sonnet-4-6"
 
@@ -44,10 +44,10 @@ def test_config_model_override() -> None:
 
 def test_config_effort_presets() -> None:
     low = load_config(["--effort", "low"])
-    assert low.max_iterations == 5
+    assert low.max_iterations == 50
 
     high = load_config(["--effort", "high"])
-    assert high.max_iterations == 30
+    assert high.max_iterations == 200
 
 
 def test_effort_model_kwargs_anthropic() -> None:

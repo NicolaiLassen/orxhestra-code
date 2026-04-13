@@ -14,10 +14,13 @@ from typing import Any
 _CONFIG_DIR = Path.home() / ".orx-coder"
 _CONFIG_FILE = _CONFIG_DIR / "config.yaml"
 
+# Max iterations per effort level.  Claude Code has NO iteration limit
+# in interactive mode — the agent runs until done.  We use high limits
+# that effectively match this while preventing runaway loops in piped mode.
 EFFORT_PRESETS: dict[str, dict[str, int]] = {
-    "low": {"max_iterations": 5},
-    "medium": {"max_iterations": 15},
-    "high": {"max_iterations": 30},
+    "low": {"max_iterations": 50},
+    "medium": {"max_iterations": 100},
+    "high": {"max_iterations": 200},
 }
 
 # Provider-specific model kwargs for LLM-level reasoning effort.
@@ -122,7 +125,7 @@ class CoderConfig:
     model: str = "anthropic/claude-sonnet-4-6"
     effort: str = "high"
     max_tokens: int = 16384
-    max_iterations: int = 30
+    max_iterations: int = 200
     permission_mode: str = "default"
     resume_session: str | None = None
     workspace: Path = field(default_factory=Path.cwd)
