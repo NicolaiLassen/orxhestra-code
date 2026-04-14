@@ -1033,7 +1033,9 @@ async def _async_main() -> None:
 
     register_command("/effort", _cmd_effort_live)
 
-    state.auto_approve = True  # Our before_tool callback handles approval.
+    # Let the SDK handle approval prompts via writer.prompt_input()
+    # which routes to pyink's approval selector UI.
+    state.auto_approve = perm_state.mode in ("auto-approve", "trust")
 
     # Check for single-shot command via pipe or -c flag.
     if not sys.stdin.isatty():

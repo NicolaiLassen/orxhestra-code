@@ -305,6 +305,7 @@ async def web_fetch(url: str, prompt: str | None = None) -> str:
         return f"Fetched content exceeds the {_MAX_FETCH_BYTES} byte limit."
 
     import asyncio
+
     import trafilatura
 
     text = response.text

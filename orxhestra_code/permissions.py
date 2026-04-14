@@ -217,28 +217,8 @@ def make_before_tool_callback(perm_state: PermissionState):
                 f"permission mode. Switch to a different mode to use this tool."
             )
 
-        if decision == "ask":
-            import asyncio
-
-            summary = _format_tool_summary(tool_name, tool_args)
-            try:
-                answer = (
-                    await asyncio.to_thread(
-                        input,
-                        f"\n  ? Allow: {summary}\n  [y]es / [n]o / approve [a]ll > ",
-                    )
-                ).strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                answer = "n"
-
-            if answer == "a":
-                perm_state.mode = "auto-approve"
-                return
-            if answer not in ("y", "yes"):
-                raise PermissionDeniedError(
-                    f"User denied '{tool_name}'. The user chose not to allow "
-                    f"this operation. Try a different approach or ask the user "
-                    f"what they'd like you to do instead."
-                )
+        # "ask" decisions are handled by the SDK's stream_response
+        # via writer.prompt_input(), which routes to pyink's approval
+        # selector.  We don't intercept here — just let it through.
 
     return _before_tool
