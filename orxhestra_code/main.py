@@ -18,13 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-# ── SDK imports (direct, no wrapper layer) ───────────────────────
-from orxhestra.cli.commands import (
-    get_command_names,
-    handle_slash_command,
-    register_command,
-)
-from orxhestra.cli.render import print_banner
+from orxhestra.cli.commands import register_command
 from orxhestra.cli.stream import stream_response
 from orxhestra.cli.theme import make_console
 
@@ -371,32 +365,32 @@ def _register_permission_commands(perm_state: PermissionState) -> None:
         None
             This command does not return a value.
         """
-        console = kw.get("console")
-        if not console:
+        writer = kw.get("writer")
+        if not writer:
             return
         if cmd_arg and cmd_arg in PERMISSION_MODES:
             perm_state.mode = cmd_arg
-            console.print(
+            writer.print_rich(
                 f"  [orx.status]Permission mode: "
                 f"{PERMISSION_MODE_LABELS[perm_state.mode]}[/orx.status]"
             )
         elif cmd_arg == "cycle":
             new_mode = perm_state.cycle()
-            console.print(
+            writer.print_rich(
                 f"  [orx.status]Permission mode: "
                 f"{PERMISSION_MODE_LABELS[new_mode]}[/orx.status]"
             )
         else:
-            console.print(
+            writer.print_rich(
                 f"  [orx.status]Current mode: "
                 f"{PERMISSION_MODE_LABELS[perm_state.mode]}[/orx.status]"
             )
-            console.print(
+            writer.print_rich(
                 "  [orx.status]Available: "
                 + ", ".join(PERMISSION_MODES)
                 + "[/orx.status]"
             )
-            console.print(
+            writer.print_rich(
                 "  [orx.status]Usage: /permissions <mode> "
                 "or /permissions cycle[/orx.status]"
             )
@@ -431,7 +425,7 @@ async def _handle_effort_command(
     state: Any,
     cmd_arg: str | None,
     *,
-    console: Any,
+    writer: Any,
     runtime_ctx: RuntimeContext | None,
     perm_state: PermissionState | None,
     usage_tracker: Any = None,
@@ -444,8 +438,8 @@ async def _handle_effort_command(
         REPL command state.
     cmd_arg : str or ``None``
         Optional effort level.
-    console : Any
-        Rich console for status rendering.
+    writer : Any
+        Output writer for status rendering.
     runtime_ctx : RuntimeContext or ``None``
         Mutable runtime context for the current REPL session.
     perm_state : PermissionState or ``None``
@@ -458,23 +452,23 @@ async def _handle_effort_command(
     None
         This coroutine does not return a value.
     """
-    if not console:
+    if not writer:
         return
     if runtime_ctx is None or perm_state is None:
-        console.print("  [orx.error]Effort switching is unavailable.[/orx.error]")
+        writer.print_rich("  [orx.error]Effort switching is unavailable.[/orx.error]")
         return
     if not cmd_arg:
-        console.print(
+        writer.print_rich(
             f"  [orx.status]Current effort: {runtime_ctx.cfg.effort}[/orx.status]"
         )
-        console.print(
+        writer.print_rich(
             "  [orx.status]Usage: /effort <low|medium|high>[/orx.status]"
         )
         return
 
     effort = cmd_arg.strip().lower()
     if effort not in {"low", "medium", "high"}:
-        console.print(
+        writer.print_rich(
             "  [orx.status]Usage: /effort <low|medium|high>[/orx.status]"
         )
         return
@@ -491,13 +485,13 @@ async def _handle_effort_command(
             str(runtime_ctx.workspace),
         )
     except Exception as exc:
-        console.print(f"  [orx.error]Error: {exc}[/orx.error]")
+        writer.print_rich(f"  [orx.error]Error: {exc}[/orx.error]")
         return
 
     _inject_plan_tools(state.runner.agent, perm_state)
     _inject_web_tools(state.runner.agent)
     _inject_permission_callback(state.runner.agent, perm_state, usage_tracker)
-    console.print(f"  [orx.status]Effort: {effort}[/orx.status]")
+    writer.print_rich(f"  [orx.status]Effort: {effort}[/orx.status]")
 
 
 def _parse_diff_args(cmd_arg: str | None) -> tuple[str, bool] | None:
@@ -597,7 +591,7 @@ def _preview_patch(
 async def _handle_diff_command(
     cmd_arg: str | None,
     *,
-    console: Any,
+    writer: Any,
     workspace: str | None,
 ) -> None:
     """Show git changes with a patch preview.
@@ -606,8 +600,8 @@ async def _handle_diff_command(
     ----------
     cmd_arg : str or ``None``
         Optional command argument.
-    console : Any
-        Rich console for status rendering.
+    writer : Any
+        Output writer for status rendering.
     workspace : str or ``None``
         Workspace directory used for git commands.
 
@@ -616,12 +610,12 @@ async def _handle_diff_command(
     None
         This coroutine does not return a value.
     """
-    if not console:
+    if not writer:
         return
 
     parsed = _parse_diff_args(cmd_arg)
     if parsed is None:
-        console.print(
+        writer.print_rich(
             "  [orx.status]Usage: /diff [staged|unstaged] [full][/orx.status]"
         )
         return
@@ -643,27 +637,27 @@ async def _handle_diff_command(
             rendered_sections.append((label, stat, patch))
 
         if not rendered_sections:
-            console.print("  [orx.status]No uncommitted changes.[/orx.status]")
+            writer.print_rich("  [orx.status]No uncommitted changes.[/orx.status]")
             return
 
         from rich.syntax import Syntax
 
         for index, (label, stat, patch) in enumerate(rendered_sections):
             if index:
-                console.print()
-            console.print(f"  [orx.status]{label}:[/orx.status]")
+                writer.print_rich()
+            writer.print_rich(f"  [orx.status]{label}:[/orx.status]")
             if stat:
-                console.print(_indent(stat, 2))
+                writer.print_rich(_indent(stat, 2))
             if show_full:
                 patch_text, truncated = patch, False
             else:
                 patch_text, truncated = _preview_patch(patch)
-            console.print(
+            writer.print_rich(
                 "  [orx.status]Patch:[/orx.status]"
                 if show_full
                 else "  [orx.status]Patch preview:[/orx.status]"
             )
-            console.print(
+            writer.print_rich(
                 Syntax(
                     patch_text,
                     "diff",
@@ -672,16 +666,16 @@ async def _handle_diff_command(
                 )
             )
             if truncated:
-                console.print(
+                writer.print_rich(
                     "  [orx.status]Preview truncated. "
                     "Use /diff full for the full patch.[/orx.status]"
                 )
     except FileNotFoundError:
-        console.print("  [orx.status]git not found.[/orx.status]")
+        writer.print_rich("  [orx.status]git not found.[/orx.status]")
     except subprocess.TimeoutExpired:
-        console.print("  [orx.status]git diff timed out.[/orx.status]")
+        writer.print_rich("  [orx.status]git diff timed out.[/orx.status]")
     except RuntimeError as exc:
-        console.print(f"  [orx.error]Error: {exc}[/orx.error]")
+        writer.print_rich(f"  [orx.error]Error: {exc}[/orx.error]")
 
 
 
@@ -739,17 +733,17 @@ def _register_extra_commands() -> None:
         None
             This command does not return a value.
         """
-        console = kw.get("console")
-        if not console:
+        writer = kw.get("writer")
+        if not writer:
             return
         p = _session_usage["prompt_tokens"]
         c = _session_usage["completion_tokens"]
         total = p + c
         turns = _session_usage["turns"]
-        console.print(f"  [orx.status]Session token usage ({turns} turns):[/orx.status]")
-        console.print(f"  [orx.status]  Input:  {p:,} tokens[/orx.status]")
-        console.print(f"  [orx.status]  Output: {c:,} tokens[/orx.status]")
-        console.print(f"  [orx.status]  Total:  {total:,} tokens[/orx.status]")
+        writer.print_rich(f"  [orx.status]Session token usage ({turns} turns):[/orx.status]")
+        writer.print_rich(f"  [orx.status]  Input:  {p:,} tokens[/orx.status]")
+        writer.print_rich(f"  [orx.status]  Output: {c:,} tokens[/orx.status]")
+        writer.print_rich(f"  [orx.status]  Total:  {total:,} tokens[/orx.status]")
 
     register_command("/cost", _cmd_cost)
     register_command("/usage", _cmd_cost)
@@ -773,7 +767,7 @@ def _register_extra_commands() -> None:
         """
         await _handle_diff_command(
             cmd_arg,
-            console=kw.get("console"),
+            writer=kw.get("writer"),
             workspace=kw.get("workspace"),
         )
 
@@ -796,10 +790,10 @@ def _register_extra_commands() -> None:
         None
             This command does not return a value.
         """
-        console = kw.get("console")
-        if not console:
+        writer = kw.get("writer")
+        if not writer:
             return
-        console.print("""\
+        writer.print_rich("""\
 [orx.status]Commands:[/orx.status]
   /model <name>      Switch model
   /effort <level>    Switch effort (low, medium, high)
@@ -1025,7 +1019,7 @@ async def _async_main() -> None:
     async def _cmd_effort_live(st: Any, cmd_arg: str | None, **kw: Any) -> None:
         await _handle_effort_command(
             st, cmd_arg,
-            console=kw.get("console"),
+            writer=kw.get("writer"),
             runtime_ctx=runtime_ctx,
             perm_state=perm_state,
             usage_tracker=usage_tracker,
@@ -1071,164 +1065,12 @@ async def _run_single(state: Any, command: str) -> None:
     )
 
 
-async def _repl(
-    runtime_ctx: RuntimeContext,
-    state: Any,
-    auto_approve: bool = True,
-    perm_state: PermissionState | None = None,
-    usage_tracker: Any = None,
-) -> None:
-    """Run the interactive REPL loop.
-
-    Parameters
-    ----------
-    runtime_ctx : RuntimeContext
-        Mutable runtime context for the current REPL session.
-    state : Any
-        REPL state containing the runner and session state.
-    auto_approve : bool, optional
-        Whether tool execution should auto-approve prompts.
-    perm_state : PermissionState or ``None``, optional
-        Mutable permission state displayed in the prompt.
-    usage_tracker : Any, optional
-        Token usage callback preserved across runtime rebuilds.
-
-    Returns
-    -------
-    None
-        This coroutine does not return a value.
-    """
-    try:
-        from rich.markdown import Markdown
-    except ImportError:
-        print("Error: rich is required. Install with: pip install orxhestra[cli]")
-        sys.exit(1)
-
-    from orxhestra_code import __version__ as code_version
-
-    console = make_console()
-
-    print_banner(
-        runtime_ctx.orx_path,
-        state.model_name,
-        str(runtime_ctx.workspace),
-        console,
-    )
-    console.print(
-        f"  [orx.status]orx-coder v{code_version} · "
-        f"type /help for commands, Ctrl+D to exit[/orx.status]\n"
-    )
-
-    prompt_session: Any = None
-    ANSI_cls: Any = None
-    try:
-        from prompt_toolkit import PromptSession
-        from prompt_toolkit.completion import WordCompleter
-        from prompt_toolkit.formatted_text import ANSI
-
-        ANSI_cls = ANSI
-        from prompt_toolkit.history import FileHistory
-
-        completer = WordCompleter(get_command_names(), sentence=True)
-
-        history_dir: Path = Path.home() / ".orx-coder"
-        history_dir.mkdir(parents=True, exist_ok=True)
-        prompt_session = PromptSession(
-            history=FileHistory(str(history_dir / "history")),
-            completer=completer,
-        )
-    except ImportError:
-        pass
-
-    def _make_prompt() -> Any:
-        """Build the interactive prompt string.
-
-        Returns
-        -------
-        Any
-            Prompt text or formatted prompt object.
-        """
-        mode = perm_state.mode if perm_state else "default"
-        mode_tag = "" if mode == "default" else f" ({mode})"
-        if ANSI_cls:
-            return ANSI_cls(
-                f"\033[38;5;208morx-coder{mode_tag}\033[0m\033[90m>\033[0m "
-            )
-        return f"orx-coder{mode_tag}> "
-
-    while True:
-        try:
-            if prompt_session:
-                user_input: str = await prompt_session.prompt_async(
-                    _make_prompt(),
-                )
-            else:
-                user_input = input(_make_prompt())
-        except (EOFError, KeyboardInterrupt):
-            console.print("\n[orx.status]Goodbye![/orx.status]")
-            break
-
-        user_input = user_input.strip()
-        if not user_input:
-            continue
-
-        # Multiline input: start with """ or ''' and collect until closing.
-        if user_input.startswith('"""') or user_input.startswith("'''"):
-            delimiter = user_input[:3]
-            lines = [user_input[3:]]
-            while True:
-                try:
-                    if prompt_session:
-                        line = await prompt_session.prompt_async("... ")
-                    else:
-                        line = input("... ")
-                except (EOFError, KeyboardInterrupt):
-                    break
-                if line.rstrip().endswith(delimiter):
-                    lines.append(line.rstrip()[: -len(delimiter)])
-                    break
-                lines.append(line)
-            user_input = "\n".join(lines).strip()
-            if not user_input:
-                continue
-
-        if user_input.startswith("/"):
-            cmd_parts: list[str] = user_input.split(maxsplit=1)
-            cmd_arg: str | None = (
-                cmd_parts[1].strip() if len(cmd_parts) > 1 else None
-            )
-            await handle_slash_command(
-                cmd_parts[0].lower(),
-                cmd_arg,
-                state,
-                console=console,
-                orx_path=runtime_ctx.orx_path,
-                workspace=str(runtime_ctx.workspace),
-            )
-            # auto_approve stays True — our before_tool callback handles it.
-            if not state.should_continue:
-                break
-            if state.retry_message:
-                user_input = state.retry_message
-                state.retry_message = None
-            else:
-                continue
-
-        auto_approve = await stream_response(
-            state.runner,
-            state.session_id,
-            user_input,
-            console,
-            Markdown,
-            todo_list=state.todo_list,
-            auto_approve=auto_approve,
-        )
-        state.turn_count += 1
-        console.print()
-
-
 def main() -> None:
-    """Run the top-level CLI entry point."""
+    """Run the top-level CLI entry point.
+
+    Runs ``_async_main`` for setup, then launches the pyink REPL
+    outside the asyncio loop.
+    """
     try:
         result = asyncio.run(_async_main())
     except KeyboardInterrupt:

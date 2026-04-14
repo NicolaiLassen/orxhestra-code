@@ -13,11 +13,11 @@ from orxhestra_code.main import RuntimeContext, _handle_diff_command, _handle_ef
 from orxhestra_code.permissions import PermissionState
 
 
-class _FakeConsole:
+class _FakeWriter:
     def __init__(self) -> None:
         self.messages: list[str] = []
 
-    def print(self, message: str = "", *_args: object, **_kwargs: object) -> None:
+    def print_rich(self, message: str = "", *_args: object, **_kwargs: object) -> None:
         self.messages.append(message)
 
 
@@ -45,7 +45,7 @@ def test_permission_mode_env_overrides_yaml(monkeypatch: pytest.MonkeyPatch) -> 
 
 @pytest.mark.asyncio
 async def test_effort_command_shows_current_effort(tmp_path: Path) -> None:
-    console = _FakeConsole()
+    writer = _FakeWriter()
     runtime_ctx = RuntimeContext(
         cfg=CoderConfig(effort="medium"),
         workspace=tmp_path,
@@ -55,12 +55,12 @@ async def test_effort_command_shows_current_effort(tmp_path: Path) -> None:
     await _handle_effort_command(
         SimpleNamespace(model_name="claude-sonnet-4-6"),
         None,
-        console=console,
+        writer=writer,
         runtime_ctx=runtime_ctx,
         perm_state=PermissionState("default"),
     )
 
-    assert console.messages == [
+    assert writer.messages == [
         "  [orx.status]Current effort: medium[/orx.status]",
         "  [orx.status]Usage: /effort <low|medium|high>[/orx.status]",
     ]
@@ -71,7 +71,7 @@ async def test_effort_command_rebuilds_runtime(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    console = _FakeConsole()
+    writer = _FakeWriter()
     state = SimpleNamespace(
         model_name="claude-sonnet-4-6",
         runner=SimpleNamespace(agent=object()),
@@ -117,7 +117,7 @@ async def test_effort_command_rebuilds_runtime(
     await _handle_effort_command(
         state,
         "high",
-        console=console,
+        writer=writer,
         runtime_ctx=runtime_ctx,
         perm_state=PermissionState("default"),
         usage_tracker=object(),
@@ -134,18 +134,18 @@ async def test_effort_command_rebuilds_runtime(
     assert calls["plan"] is True
     assert calls["web"] is True
     assert calls["permissions"] is True
-    assert console.messages[-1] == "  [orx.status]Effort: high[/orx.status]"
+    assert writer.messages[-1] == "  [orx.status]Effort: high[/orx.status]"
 
 
 @pytest.mark.asyncio
 async def test_diff_command_shows_no_changes(monkeypatch: pytest.MonkeyPatch) -> None:
-    console = _FakeConsole()
+    writer = _FakeWriter()
 
     monkeypatch.setattr(main_module, "_run_git_capture", lambda *_args, **_kwargs: "")
 
-    await _handle_diff_command(None, console=console, workspace="/tmp")
+    await _handle_diff_command(None, writer=writer, workspace="/tmp")
 
-    assert console.messages == [
+    assert writer.messages == [
         "  [orx.status]No uncommitted changes.[/orx.status]"
     ]
 
@@ -154,7 +154,7 @@ async def test_diff_command_shows_no_changes(monkeypatch: pytest.MonkeyPatch) ->
 async def test_diff_command_shows_preview_and_truncation_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    console = _FakeConsole()
+    writer = _FakeWriter()
     patch = "\n".join(
         f"line {index}"
         for index in range(1, main_module._DIFF_PREVIEW_LINE_LIMIT + 2)
@@ -180,17 +180,17 @@ async def test_diff_command_shows_preview_and_truncation_hint(
         lambda text, *_args, **_kwargs: text,
     )
 
-    await _handle_diff_command(None, console=console, workspace="/tmp")
+    await _handle_diff_command(None, writer=writer, workspace="/tmp")
 
     preview = next(
-        message for message in console.messages if message.startswith("line 1")
+        message for message in writer.messages if message.startswith("line 1")
     )
-    assert "  [orx.status]Unstaged changes:[/orx.status]" in console.messages
-    assert "  [orx.status]Patch preview:[/orx.status]" in console.messages
+    assert "  [orx.status]Unstaged changes:[/orx.status]" in writer.messages
+    assert "  [orx.status]Patch preview:[/orx.status]" in writer.messages
     assert (
         "  [orx.status]Preview truncated. "
         "Use /diff full for the full patch.[/orx.status]"
-        in console.messages
+        in writer.messages
     )
     assert f"line {main_module._DIFF_PREVIEW_LINE_LIMIT}" in preview
     assert f"line {main_module._DIFF_PREVIEW_LINE_LIMIT + 1}" not in preview
@@ -200,7 +200,7 @@ async def test_diff_command_shows_preview_and_truncation_hint(
 async def test_diff_command_supports_staged_full(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    console = _FakeConsole()
+    writer = _FakeWriter()
     calls: list[tuple[str, ...]] = []
 
     def _fake_run_git_capture(args: list[str], workspace: str | None) -> str:
@@ -220,10 +220,10 @@ async def test_diff_command_supports_staged_full(
         lambda text, *_args, **_kwargs: text,
     )
 
-    await _handle_diff_command("staged full", console=console, workspace="/tmp")
+    await _handle_diff_command("staged full", writer=writer, workspace="/tmp")
 
     assert calls == [("diff", "--cached", "--stat"), ("diff", "--cached")]
-    assert "  [orx.status]Staged changes:[/orx.status]" in console.messages
-    assert "  [orx.status]Patch:[/orx.status]" in console.messages
-    assert "full patch\nline 2" in console.messages
-    assert not any("Preview truncated" in message for message in console.messages)
+    assert "  [orx.status]Staged changes:[/orx.status]" in writer.messages
+    assert "  [orx.status]Patch:[/orx.status]" in writer.messages
+    assert "full patch\nline 2" in writer.messages
+    assert not any("Preview truncated" in message for message in writer.messages)
