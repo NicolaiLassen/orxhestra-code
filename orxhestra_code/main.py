@@ -1033,56 +1033,39 @@ async def _async_main() -> None:
 
     register_command("/effort", _cmd_effort_live)
 
-    # Always tell orxhestra's CLI to auto_approve — our before_tool callback
-    # handles all approval logic. This prevents two competing prompts.
-    auto_approve: bool = True
+    state.auto_approve = True  # Our before_tool callback handles approval.
 
     # Check for single-shot command via pipe or -c flag.
     if not sys.stdin.isatty():
         command: str = sys.stdin.read().strip()
         if command:
-            await _run_single(state, command, auto_approve)
-            return
+            await _run_single(state, command)
+            return None
 
-    await _repl(runtime_ctx, state, auto_approve, perm_state, usage_tracker)
+    # Return state so main() can launch the pyink app outside asyncio.
+    return runtime_ctx, state
 
 
-async def _run_single(
-    state: Any,
-    command: str,
-    auto_approve: bool = False,
-) -> None:
-    """Run a single command and exit.
-
-    Parameters
-    ----------
-    state : Any
-        REPL state containing the runner.
-    command : str
-        Command text to execute.
-    auto_approve : bool, optional
-        Whether tool execution should auto-approve prompts.
-
-    Returns
-    -------
-    None
-        This coroutine does not return a value.
-    """
+async def _run_single(state: Any, command: str) -> None:
+    """Run a single command and exit."""
     try:
         from rich.markdown import Markdown
     except ImportError:
         print("Error: rich is required. Install with: pip install orxhestra[cli]")
         sys.exit(1)
 
+    from orxhestra.cli.writer import ConsoleWriter
+
     console = make_console()
+    writer = ConsoleWriter(console)
     await stream_response(
         state.runner,
         state.session_id,
         command,
-        console,
+        writer,
         Markdown,
         todo_list=state.todo_list,
-        auto_approve=auto_approve,
+        auto_approve=getattr(state, "auto_approve", False),
     )
 
 
@@ -1243,17 +1226,21 @@ async def _repl(
 
 
 def main() -> None:
-    """Run the top-level CLI entry point.
-
-    Returns
-    -------
-    None
-        This function does not return a value.
-    """
+    """Run the top-level CLI entry point."""
     try:
-        asyncio.run(_async_main())
+        result = asyncio.run(_async_main())
     except KeyboardInterrupt:
-        pass
+        return
+
+    if result is not None:
+        runtime_ctx, state = result
+        from orxhestra.cli.ink_app import run_ink_app
+
+        console = make_console()
+        try:
+            run_ink_app(state, console, runtime_ctx.orx_path, str(runtime_ctx.workspace))
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":
