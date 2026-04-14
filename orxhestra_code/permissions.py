@@ -178,13 +178,21 @@ def _format_tool_summary(tool_name: str, tool_args: dict[str, Any]) -> str:
     return f"{tool_name}({', '.join(f'{k}={v!r}' for k, v in list(tool_args.items())[:3])})"
 
 
-def make_before_tool_callback(perm_state: PermissionState):
+def make_before_tool_callback(
+    perm_state: PermissionState,
+    approval_fn: Any = None,
+):
     """Create a callback that enforces permission checks before tool calls.
 
     Parameters
     ----------
     perm_state : PermissionState
         Mutable permission state used at call time.
+    approval_fn : callable, optional
+        Blocking function ``(label: str) -> str`` that shows an approval
+        selector and returns ``"y"``, ``"a"`` (allow all), or ``"n"``.
+        When provided, ``"ask"`` decisions are routed through this function
+        instead of relying on the SDK's built-in approval flow.
 
     Returns
     -------
@@ -203,11 +211,6 @@ def make_before_tool_callback(perm_state: PermissionState):
             Tool name being invoked.
         tool_args : dict
             Tool arguments for the call.
-
-        Returns
-        -------
-        None
-            This callback does not return a value.
         """
         decision = check_permission(perm_state.mode, tool_name, tool_args)
 
@@ -217,8 +220,15 @@ def make_before_tool_callback(perm_state: PermissionState):
                 f"permission mode. Switch to a different mode to use this tool."
             )
 
-        # "ask" decisions are handled by the SDK's stream_response
-        # via writer.prompt_input(), which routes to pyink's approval
-        # selector.  We don't intercept here — just let it through.
+        if decision == "ask" and approval_fn is not None:
+            summary = _format_tool_summary(tool_name, tool_args)
+            response = approval_fn(summary)
+            if response in ("a", "all"):
+                # Upgrade to auto-approve for the rest of the session.
+                perm_state.mode = "auto-approve"
+            elif response not in ("y", "yes"):
+                raise PermissionDeniedError(
+                    f"Tool '{tool_name}' was denied by the user."
+                )
 
     return _before_tool

@@ -820,7 +820,8 @@ def _register_extra_commands() -> None:
 
 
 def _inject_permission_callback(
-    agent: Any, perm_state: PermissionState, usage_tracker: Any = None,
+    agent: Any, perm_state: PermissionState,
+    usage_tracker: Any = None, approval_fn: Any = None,
 ) -> None:
     """Inject permission and usage callbacks into an agent tree.
 
@@ -840,7 +841,7 @@ def _inject_permission_callback(
     """
     from orxhestra_code.permissions import _DESTRUCTIVE_TOOLS, _NETWORK_TOOLS
 
-    callback = make_before_tool_callback(perm_state)
+    callback = make_before_tool_callback(perm_state, approval_fn=approval_fn)
     if hasattr(agent, "_callbacks"):
         agent._callbacks.before_tool = callback
         # Wire up usage tracking via after_model callback.
@@ -1006,13 +1007,27 @@ async def _async_main() -> None:
             else:
                 print(f"  Session '{target}' not found. Starting fresh.")
 
+    # Mutable holder for the approval function — wired after ink app starts.
+    _approval_holder: dict[str, Any] = {"fn": None}
+
+    def _lazy_approval(label: str) -> str:
+        fn = _approval_holder.get("fn")
+        if fn:
+            return fn(label)
+        # Fallback: auto-approve if no selector is wired yet.
+        # Never call input() here — it fights with pyink's raw mode.
+        return "y"
+
     # Create mutable permission state, inject callback, register commands.
     perm_state = PermissionState(cfg.permission_mode)
     _register_extra_commands()
     usage_tracker = getattr(_register_extra_commands, "track_usage", None)
     _inject_plan_tools(state.runner.agent, perm_state)
     _inject_web_tools(state.runner.agent)
-    _inject_permission_callback(state.runner.agent, perm_state, usage_tracker)
+    _inject_permission_callback(
+        state.runner.agent, perm_state, usage_tracker,
+        approval_fn=_lazy_approval,
+    )
     _register_permission_commands(perm_state)
 
     # Register /effort with closures over runtime_ctx, perm_state, usage_tracker.
@@ -1027,9 +1042,9 @@ async def _async_main() -> None:
 
     register_command("/effort", _cmd_effort_live)
 
-    # Let the SDK handle approval prompts via writer.prompt_input()
-    # which routes to pyink's approval selector UI.
-    state.auto_approve = perm_state.mode in ("auto-approve", "trust")
+    # Always tell the SDK to skip its own approval prompts — orx-coder's
+    # before_tool callback handles all permission checks via the ink selector.
+    state.auto_approve = True
 
     # Check for single-shot command via pipe or -c flag.
     if not sys.stdin.isatty():
@@ -1038,8 +1053,8 @@ async def _async_main() -> None:
             await _run_single(state, command)
             return None
 
-    # Return state so main() can launch the pyink app outside asyncio.
-    return runtime_ctx, state
+    # Return state + approval holder so main() can wire the ink selector.
+    return runtime_ctx, state, _approval_holder
 
 
 async def _run_single(state: Any, command: str) -> None:
@@ -1065,6 +1080,24 @@ async def _run_single(state: Any, command: str) -> None:
     )
 
 
+def _wire_ink_approval(state: Any, approval_holder: dict[str, Any]) -> None:
+    """Connect the ink selector callback to the permission system.
+
+    The ink app's ``run_ink_app`` creates a selector callback during
+    its first render. We register a hook on the state so the ink app
+    can push the callback into ``approval_holder["fn"]``.
+
+    Parameters
+    ----------
+    state : Any
+        REPL state passed to the ink app.
+    approval_holder : dict[str, Any]
+        Mutable dict; set ``"fn"`` to the selector callback.
+    """
+    # Store the holder on state so ink_app can access it.
+    state._approval_holder = approval_holder
+
+
 def main() -> None:
     """Run the top-level CLI entry point.
 
@@ -1077,10 +1110,17 @@ def main() -> None:
         return
 
     if result is not None:
-        runtime_ctx, state = result
+        runtime_ctx, state, approval_holder = result
         from orxhestra.cli.ink_app import run_ink_app
 
         console = make_console()
+
+        # The ink app's selector callback will be registered here
+        # once the component renders and creates the InkWriter.
+        # The _lazy_approval function in _async_main will call
+        # approval_holder["fn"] which we set from the ink app.
+        _wire_ink_approval(state, approval_holder)
+
         try:
             run_ink_app(state, console, runtime_ctx.orx_path, str(runtime_ctx.workspace))
         except KeyboardInterrupt:
