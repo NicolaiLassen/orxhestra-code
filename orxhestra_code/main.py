@@ -312,7 +312,7 @@ tools:
     builtin: "human_input"
 
 agents:
-  coder:
+  orx-coder:
     type: llm
     max_iterations: {cfg.max_iterations}
     instructions: |
@@ -326,7 +326,7 @@ agents:
       - task
       - human_input
 
-main_agent: coder
+main_agent: orx-coder
 
 runner:
   app_name: orx-coder
