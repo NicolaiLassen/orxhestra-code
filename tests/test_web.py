@@ -66,7 +66,8 @@ def test_make_web_tools_empty_without_deps() -> None:
 
 
 @pytest.mark.skipif(not _has_web_deps, reason="web extras not installed")
-def test_fetch_rejects_binary(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.asyncio
+async def test_fetch_rejects_binary(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeResponse:
         headers = {"content-type": "application/pdf", "content-length": "4"}
         content = b"%PDF"
@@ -77,22 +78,23 @@ def test_fetch_rejects_binary(monkeypatch: pytest.MonkeyPatch) -> None:
             return None
 
     class FakeClient:
-        def __enter__(self):
+        async def __aenter__(self):
             return self
 
-        def __exit__(self, *_):
+        async def __aexit__(self, *_):
             return None
 
-        def get(self, url: str):
+        async def get(self, url: str):
             return FakeResponse()
 
-    monkeypatch.setattr("httpx.Client", lambda **kwargs: FakeClient())
-    result = web_tools.web_fetch("https://example.com/file.pdf")
+    monkeypatch.setattr("httpx.AsyncClient", lambda **kwargs: FakeClient())
+    result = await web_tools.web_fetch("https://example.com/file.pdf")
     assert "binary or unsupported" in result
 
 
 @pytest.mark.skipif(not _has_web_deps, reason="web extras not installed")
-def test_fetch_extracts_relevant_html(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.asyncio
+async def test_fetch_extracts_relevant_html(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeResponse:
         headers = {"content-type": "text/html; charset=utf-8", "content-length": "64"}
         content = b"<html><title>Docs</title></html>"
@@ -103,16 +105,16 @@ def test_fetch_extracts_relevant_html(monkeypatch: pytest.MonkeyPatch) -> None:
             return None
 
     class FakeClient:
-        def __enter__(self):
+        async def __aenter__(self):
             return self
 
-        def __exit__(self, *_):
+        async def __aexit__(self, *_):
             return None
 
-        def get(self, url: str):
+        async def get(self, url: str):
             return FakeResponse()
 
-    monkeypatch.setattr("httpx.Client", lambda **kwargs: FakeClient())
+    monkeypatch.setattr("httpx.AsyncClient", lambda **kwargs: FakeClient())
     monkeypatch.setattr(
         "trafilatura.extract",
         lambda text, output_format=None: (
@@ -120,7 +122,7 @@ def test_fetch_extracts_relevant_html(monkeypatch: pytest.MonkeyPatch) -> None:
         ),
     )
 
-    result = web_tools.web_fetch("https://example.com/docs", prompt="cache invalidation")
+    result = await web_tools.web_fetch("https://example.com/docs", prompt="cache invalidation")
     assert "Fetched: https://example.com/docs" in result
     assert "Title: Docs" in result
     assert "Caching behavior and cache invalidation." in result

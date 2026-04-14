@@ -216,7 +216,7 @@ def _format_search_results(query: str, results: list[dict[str, str]]) -> str:
     return "\n".join(lines).rstrip()
 
 
-def web_search(query: str, max_results: int = 5) -> str:
+async def web_search(query: str, max_results: int = 5) -> str:
     """Search the open web and format the results.
 
     Parameters
@@ -231,18 +231,23 @@ def web_search(query: str, max_results: int = 5) -> str:
     str
         Formatted search results.
     """
+    import asyncio
+
     cleaned_query = query.strip()
     if not cleaned_query:
         raise ValueError("Query must not be empty.")
 
-    from ddgs import DDGS
+    def _do_search() -> list:
+        from ddgs import DDGS
 
-    limit = max(1, min(max_results, _MAX_SEARCH_RESULTS))
-    results = list(DDGS().text(cleaned_query, max_results=limit))
+        limit = max(1, min(max_results, _MAX_SEARCH_RESULTS))
+        return list(DDGS().text(cleaned_query, max_results=limit))
+
+    results = await asyncio.to_thread(_do_search)
     return _format_search_results(cleaned_query, results)
 
 
-def web_fetch(url: str, prompt: str | None = None) -> str:
+async def web_fetch(url: str, prompt: str | None = None) -> str:
     """Fetch a URL and extract readable text content.
 
     Parameters
@@ -258,19 +263,18 @@ def web_fetch(url: str, prompt: str | None = None) -> str:
         Fetched content summary or an error message.
     """
     import httpx
-    import trafilatura
 
     last_error: Exception | None = None
     response: httpx.Response | None = None
 
-    with httpx.Client(
+    async with httpx.AsyncClient(
         timeout=20.0,
         follow_redirects=True,
         headers={"User-Agent": _USER_AGENT},
     ) as client:
         for candidate in _candidate_urls(url):
             try:
-                response = client.get(candidate)
+                response = await client.get(candidate)
                 response.raise_for_status()
                 break
             except httpx.HTTPError as exc:
@@ -300,10 +304,15 @@ def web_fetch(url: str, prompt: str | None = None) -> str:
     if len(body_bytes) > _MAX_FETCH_BYTES:
         return f"Fetched content exceeds the {_MAX_FETCH_BYTES} byte limit."
 
+    import asyncio
+    import trafilatura
+
     text = response.text
     title = _extract_title(text)
     if "html" in content_type.lower() or text.lstrip().startswith("<"):
-        extracted = trafilatura.extract(text, output_format="markdown") or ""
+        extracted = await asyncio.to_thread(
+            trafilatura.extract, text, output_format="markdown",
+        ) or ""
     else:
         extracted = text
 
@@ -348,7 +357,7 @@ def make_web_tools() -> list[StructuredTool]:
     except ImportError:
         return []
     search_tool = StructuredTool.from_function(
-        func=web_search,
+        coroutine=web_search,
         name="web_search",
         description=(
             "Search the open web without a search API key. "
@@ -356,7 +365,7 @@ def make_web_tools() -> list[StructuredTool]:
         ),
     )
     fetch_tool = StructuredTool.from_function(
-        func=web_fetch,
+        coroutine=web_fetch,
         name="web_fetch",
         description=(
             "Fetch a URL, extract readable page content, and optionally rank "
