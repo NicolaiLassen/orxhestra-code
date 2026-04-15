@@ -1,6 +1,6 @@
 [project]
 name = "orxhestra-code"
-version = "0.0.52"
+version = "0.0.53"
 description = "AI coding agent powered by orxhestra — reads, writes, edits code and runs commands"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,35 +17,35 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "orxhestra[cli]>=0.0.82",
+    "orxhestra[cli]>=0.0.83",
     "pyyaml>=6.0",
     "aiosqlite>=0.20",
     "sqlalchemy[asyncio]>=2.0",
 ]
 
 [project.optional-dependencies]
-openai = ["orxhestra[openai]>=0.0.82"]
-anthropic = ["orxhestra[anthropic]>=0.0.82"]
-google = ["orxhestra[google]>=0.0.82"]
-google-vertexai = ["orxhestra[google-vertexai]>=0.0.82"]
-aws = ["orxhestra[aws]>=0.0.82"]
-azure-ai = ["orxhestra[azure-ai]>=0.0.82"]
-mistral = ["orxhestra[mistral]>=0.0.82"]
-cohere = ["orxhestra[cohere]>=0.0.82"]
-fireworks = ["orxhestra[fireworks]>=0.0.82"]
-together = ["orxhestra[together]>=0.0.82"]
-groq = ["orxhestra[groq]>=0.0.82"]
-nvidia = ["orxhestra[nvidia]>=0.0.82"]
-huggingface = ["orxhestra[huggingface]>=0.0.82"]
-deepseek = ["orxhestra[deepseek]>=0.0.82"]
-ollama = ["orxhestra[ollama]>=0.0.82"]
-xai = ["orxhestra[xai]>=0.0.82"]
-ibm = ["orxhestra[ibm]>=0.0.82"]
-perplexity = ["orxhestra[perplexity]>=0.0.82"]
-openrouter = ["orxhestra[openrouter]>=0.0.82"]
-upstage = ["orxhestra[upstage]>=0.0.82"]
+openai = ["orxhestra[openai]>=0.0.83"]
+anthropic = ["orxhestra[anthropic]>=0.0.83"]
+google = ["orxhestra[google]>=0.0.83"]
+google-vertexai = ["orxhestra[google-vertexai]>=0.0.83"]
+aws = ["orxhestra[aws]>=0.0.83"]
+azure-ai = ["orxhestra[azure-ai]>=0.0.83"]
+mistral = ["orxhestra[mistral]>=0.0.83"]
+cohere = ["orxhestra[cohere]>=0.0.83"]
+fireworks = ["orxhestra[fireworks]>=0.0.83"]
+together = ["orxhestra[together]>=0.0.83"]
+groq = ["orxhestra[groq]>=0.0.83"]
+nvidia = ["orxhestra[nvidia]>=0.0.83"]
+huggingface = ["orxhestra[huggingface]>=0.0.83"]
+deepseek = ["orxhestra[deepseek]>=0.0.83"]
+ollama = ["orxhestra[ollama]>=0.0.83"]
+xai = ["orxhestra[xai]>=0.0.83"]
+ibm = ["orxhestra[ibm]>=0.0.83"]
+perplexity = ["orxhestra[perplexity]>=0.0.83"]
+openrouter = ["orxhestra[openrouter]>=0.0.83"]
+upstage = ["orxhestra[upstage]>=0.0.83"]
 web = ["ddgs>=9.0.0", "httpx>=0.28.0", "trafilatura>=1.12.0"]
-all = ["orxhestra[all]>=0.0.82", "ddgs>=9.0.0", "httpx>=0.28.0", "trafilatura>=1.12.0"]
+all = ["orxhestra[all]>=0.0.83", "ddgs>=9.0.0", "httpx>=0.28.0", "trafilatura>=1.12.0"]
 
 [project.scripts]
 orx-coder = "orxhestra_code.main:main"
