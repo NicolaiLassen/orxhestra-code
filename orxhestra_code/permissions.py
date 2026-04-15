@@ -6,6 +6,7 @@ callback that enforces those rules at runtime.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 # Tools that modify the filesystem or run commands.
@@ -200,6 +201,8 @@ def make_before_tool_callback(
         Async callback invoked before each tool execution.
     """
 
+    _approval_lock = asyncio.Lock()
+
     async def _before_tool(ctx: Any, tool_name: str, tool_args: dict) -> None:
         """Validate and optionally prompt for a tool call.
 
@@ -222,7 +225,9 @@ def make_before_tool_callback(
 
         if decision == "ask" and approval_fn is not None:
             summary = _format_tool_summary(tool_name, tool_args)
-            response = approval_fn(summary)
+            async with _approval_lock:
+                loop = asyncio.get_running_loop()
+                response = await loop.run_in_executor(None, approval_fn, summary)
             if response in ("a", "all"):
                 # Upgrade to auto-approve for the rest of the session.
                 perm_state.mode = "auto-approve"
