@@ -3320,15 +3320,15 @@ wheels = [
 
 [[package]]
 name = "orxhestra"
-version = "0.0.85"
+version = "0.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/58/88/3ee6b0809e3ef7ba9579d0217634f168aec730589e4fd8aad9d642b07fff/orxhestra-0.0.85.tar.gz", hash = "sha256:ed094ff452b4052d5e03763ea02131a969cf6b6fffc89f0da89b0ca028636a01", size = 204419 }
+sdist = { url = "https://files.pythonhosted.org/packages/c1/9e/abf56b9c9f82c51cc2b7273c53b0c7699662fd359f2fac21f5bf22aa1029/orxhestra-0.1.0.tar.gz", hash = "sha256:0697d70b3d89061a1f1502796b874dc909c2b2b01c542d56551a0dc5a0eb354c", size = 204424 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/b4/bd381241bbf3b2284d96fda4f37083252f4c59880b6a1b8658803d2b4cfd/orxhestra-0.0.85-py3-none-any.whl", hash = "sha256:d65583d7064a0325915b30c6bd3919dd5ec9da70314a817e72973308f4ab0643", size = 219856 },
+    { url = "https://files.pythonhosted.org/packages/82/d3/8e70faf95430bb18561f65b0490b26f565925d5b9b5754dfce2e54de76c0/orxhestra-0.1.0-py3-none-any.whl", hash = "sha256:7f5335df512d4216f66bb3213795432042c8d43f43e42a1011922ca456323783", size = 219839 },
 ]
 
 [package.optional-dependencies]
@@ -3415,7 +3415,7 @@ xai = [
 
 [[package]]
 name = "orxhestra-code"
-version = "0.0.56"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -3511,28 +3511,28 @@ requires-dist = [
     { name = "ddgs", marker = "extra == 'web'", specifier = ">=9.0.0" },
     { name = "httpx", marker = "extra == 'all'", specifier = ">=0.28.0" },
     { name = "httpx", marker = "extra == 'web'", specifier = ">=0.28.0" },
-    { name = "orxhestra", extras = ["all"], marker = "extra == 'all'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["aws"], marker = "extra == 'aws'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["azure-ai"], marker = "extra == 'azure-ai'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["cli"], specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["cohere"], marker = "extra == 'cohere'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["deepseek"], marker = "extra == 'deepseek'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["fireworks"], marker = "extra == 'fireworks'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["google"], marker = "extra == 'google'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["google-vertexai"], marker = "extra == 'google-vertexai'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["groq"], marker = "extra == 'groq'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["huggingface"], marker = "extra == 'huggingface'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["ibm"], marker = "extra == 'ibm'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["mistral"], marker = "extra == 'mistral'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["nvidia"], marker = "extra == 'nvidia'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["ollama"], marker = "extra == 'ollama'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["openrouter"], marker = "extra == 'openrouter'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["perplexity"], marker = "extra == 'perplexity'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["together"], marker = "extra == 'together'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["upstage"], marker = "extra == 'upstage'", specifier = ">=0.0.85" },
-    { name = "orxhestra", extras = ["xai"], marker = "extra == 'xai'", specifier = ">=0.0.85" },
+    { name = "orxhestra", extras = ["all"], marker = "extra == 'all'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["aws"], marker = "extra == 'aws'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["azure-ai"], marker = "extra == 'azure-ai'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["cli"], specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["cohere"], marker = "extra == 'cohere'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["deepseek"], marker = "extra == 'deepseek'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["fireworks"], marker = "extra == 'fireworks'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["google"], marker = "extra == 'google'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["google-vertexai"], marker = "extra == 'google-vertexai'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["groq"], marker = "extra == 'groq'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["huggingface"], marker = "extra == 'huggingface'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["ibm"], marker = "extra == 'ibm'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["mistral"], marker = "extra == 'mistral'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["nvidia"], marker = "extra == 'nvidia'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["ollama"], marker = "extra == 'ollama'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["openrouter"], marker = "extra == 'openrouter'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["perplexity"], marker = "extra == 'perplexity'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["together"], marker = "extra == 'together'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["upstage"], marker = "extra == 'upstage'", specifier = ">=0.1.0" },
+    { name = "orxhestra", extras = ["xai"], marker = "extra == 'xai'", specifier = ">=0.1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "trafilatura", marker = "extra == 'all'", specifier = ">=1.12.0" },
