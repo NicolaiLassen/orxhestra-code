@@ -6,6 +6,7 @@ and lightweight relevance ranking for fetched pages.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import re
 from urllib.parse import urlparse
@@ -13,6 +14,10 @@ from urllib.parse import urlparse
 from langchain_core.tools import StructuredTool
 
 _MAX_FETCH_BYTES = 10_000_000
+
+# Serialise calls to trafilatura (and its lxml C-extension) so that
+# concurrent web_fetch invocations don't trigger heap corruption.
+_trafilatura_lock = asyncio.Lock()
 _MAX_OUTPUT_CHARS = 100_000
 _MAX_SEARCH_RESULTS = 10
 _STOP_WORDS = {
@@ -231,8 +236,6 @@ async def web_search(query: str, max_results: int = 5) -> str:
     str
         Formatted search results.
     """
-    import asyncio
-
     cleaned_query = query.strip()
     if not cleaned_query:
         raise ValueError("Query must not be empty.")
@@ -304,16 +307,15 @@ async def web_fetch(url: str, prompt: str | None = None) -> str:
     if len(body_bytes) > _MAX_FETCH_BYTES:
         return f"Fetched content exceeds the {_MAX_FETCH_BYTES} byte limit."
 
-    import asyncio
-
     import trafilatura
 
     text = response.text
     title = _extract_title(text)
     if "html" in content_type.lower() or text.lstrip().startswith("<"):
-        extracted = await asyncio.to_thread(
-            trafilatura.extract, text, output_format="markdown",
-        ) or ""
+        async with _trafilatura_lock:
+            extracted = await asyncio.to_thread(
+                trafilatura.extract, text, output_format="markdown",
+            ) or ""
     else:
         extracted = text
 
