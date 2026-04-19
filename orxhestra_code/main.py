@@ -1098,12 +1098,37 @@ def _wire_ink_approval(state: Any, approval_holder: dict[str, Any]) -> None:
     state._approval_holder = approval_holder
 
 
+def _maybe_run_orx_subcommand() -> bool:
+    """Delegate known ``orx`` subcommands (e.g. ``identity``) to orxhestra.
+
+    Returns ``True`` if a subcommand handled the invocation and the
+    caller should exit.
+    """
+    from orxhestra.cli.app import _SUBCOMMANDS
+
+    raw = sys.argv[1:]
+    if not raw or raw[0] not in _SUBCOMMANDS:
+        return False
+
+    if raw[0] == "identity":
+        from orxhestra.cli.app import _parse_identity_args
+        from orxhestra.cli.identity import run_parsed
+
+        args = _parse_identity_args(raw[1:])
+        sys.exit(run_parsed(args))
+
+    return False
+
+
 def main() -> None:
     """Run the top-level CLI entry point.
 
     Runs ``_async_main`` for setup, then launches the pyink REPL
     outside the asyncio loop.
     """
+    if _maybe_run_orx_subcommand():
+        return
+
     try:
         result = asyncio.run(_async_main())
     except KeyboardInterrupt:

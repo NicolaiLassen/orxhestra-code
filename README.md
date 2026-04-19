@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/NicolaiLassen/orxhestra-code/main/assets/logo_code_text_bottom.svg" width="400" alt="orxhestra-code logo">
+  <img src="https://raw.githubusercontent.com/NicolaiLassen/orxhestra-code/main/assets/logo_code_text_bottom.svg" width="240" alt="orxhestra-code logo">
 </p>
 
 <p align="center">
